@@ -244,6 +244,28 @@ std::vector<NodePtr> RemoveBroken(NodePtr node,
   return out;
 }
 
+std::vector<NodePtr> DFSTopologicalSort(const std::vector<NodePtr>& outputs) {
+  GraphVisitor visitor;
+
+  std::unordered_set<NodePtr> visited;
+  std::vector<NodePtr> sorted_nodes;
+
+  visitor.operation = [&sorted_nodes, &visited](NodePtr node) {
+    visited.insert(node);
+    sorted_nodes.emplace_back(node);
+  };
+  visitor.stop_condition = [&visited](NodePtr node, NodePtr input) {
+    if (!(visited.count(input))) {
+      return false;
+    }
+    return true;
+  };
+  for (auto& node : outputs) {
+    GraphTraverse(node, visitor);
+  }
+  return sorted_nodes;
+}
+
 std::vector<NodePtr> GetSubgraphOutputs(
     const Graph& graph, const std::vector<NodePtr>& subgraph_nodes) {
   std::unordered_set<NodePtr> sg_nodes(subgraph_nodes.begin(),
@@ -251,24 +273,31 @@ std::vector<NodePtr> GetSubgraphOutputs(
   std::unordered_set<NodePtr> out_nodes_set;
 
   std::vector<NodePtr> outNodes;
+  // of nodes in the subgraph are outputs of the main graph, they need
+  // to be outputs of the subgraph
+  for (auto n : graph.outputs_) {
+    if (sg_nodes.count(n)) {
+      outNodes.emplace_back(n);
+    }
+  }
+  auto sorted_nodes = DFSTopologicalSort(graph.outputs_);
+
   // for every node in the subgraph, if the node is an input to other nodes
   // that aren't in the subgraph, this node is an output of the subgraph
   for (auto n : graph.nodes_) {
     if (!sg_nodes.count(n)) {
       for (auto i : n->inputs_) {
         if (sg_nodes.count(i) && !out_nodes_set.count(i)) {
-          outNodes.emplace_back(i);
           out_nodes_set.insert(i);
         }
       }
     }
   }
 
-  // of nodes in the subgraph are outputs of the main graph, they need
-  // to be outputs of the subgraph
-  for (auto n : graph.outputs_) {
-    if (sg_nodes.count(n)) {
-      outNodes.emplace_back(n);
+  // Add the outputs in reverse topological order
+  for (auto it = sorted_nodes.rbegin(); it < sorted_nodes.rend(); ++it) {
+    if (out_nodes_set.count(*it)) {
+      outNodes.emplace_back(*it);
     }
   }
 
@@ -378,18 +407,28 @@ void CollapseSubgraph(Graph* graph, int subgraph_num) {
     tmpGraph->in_ngraph_ = true;
     tmpGraph->subgraph_ = subgraph_num;
 
-    auto in_tmpGraphInputs = [&tmpGraph](NodePtr n) {
-      if (!in_vec(tmpGraph->inputs_, n)) return false;
+    GraphVisitor visitor;
+
+    std::unordered_set<NodePtr> nodes(tmpGraph->nodes_.begin(),
+                                      tmpGraph->nodes_.end());
+    std::unordered_set<NodePtr> visited;
+
+    visitor.operation = [tmpGraph, &nodes, &visited](NodePtr node) {
+      visited.insert(node);
+      if (!nodes.count(node)) {
+        tmpGraph->inputs_.push_back(node);
+      }
+    };
+    visitor.stop_condition = [&nodes, &visited](NodePtr node, NodePtr input) {
+      if (nodes.count(node) && !(visited.count(input))) {
+        return false;
+      }
       return true;
     };
-
-    // setup inputs to this subgraph (as a node)
-    for (auto node : tmpGraph->nodes_) {
-      for (auto input : node->inputs_) {
-        if (input->subgraph_ != subgraph_num && !in_tmpGraphInputs(input))
-          tmpGraph->inputs_.emplace_back(input);
-      }
+    for (auto& node : tmpGraph->outputs_) {
+      GraphTraverse(node, visitor);
     }
+
     for (auto input : tmpGraph->inputs_) {
       tmpGraph->input_is_weight_.push_back(false);
     }
