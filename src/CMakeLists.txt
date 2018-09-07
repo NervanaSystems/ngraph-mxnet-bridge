@@ -31,7 +31,7 @@ set(SRC
     ops/slice.cc
     )
 
-add_library(ngraph_bridge OBJECT ${SRC})
+add_library(ngraph-mxnet-bridge OBJECT ${SRC})
 
 if(USE_CUDA)
     add_definitions(-DMSHADOW_USE_CUDA=1)

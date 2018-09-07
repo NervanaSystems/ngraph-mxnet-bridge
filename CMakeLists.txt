@@ -60,4 +60,4 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 add_subdirectory(src)
 
-add_dependencies(ngraph_bridge ext_ngraph)
+add_dependencies(ngraph-mxnet-bridge ext_ngraph)

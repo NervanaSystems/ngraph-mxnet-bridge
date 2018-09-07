@@ -70,9 +70,9 @@ endif
 override NGRAPH_EXTRA_CMAKE_FLAGS += -DNGRAPH_UNIT_TEST_ENABLE=0 -DNGRAPH_TOOLS_ENABLE=0
 NGRAPH_EXTRA_MAKE_FLAGS="VERBOSE=1"
 
-NGRAPH_SRC_DIR := $(ROOTDIR)/3rdparty/ngraph_bridge
-NGRAPH_BUILD_DIR := $(ROOTDIR)/3rdparty/ngraph_bridge/build
-NGRAPH_INSTALL_DIR := $(ROOTDIR)/3rdparty/ngraph_bridge/build
+NGRAPH_SRC_DIR := $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge
+NGRAPH_BUILD_DIR := $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/build
+NGRAPH_INSTALL_DIR := $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/build
 MXNET_LIB_DIR := $(ROOTDIR)/lib
 
 
@@ -119,16 +119,16 @@ ngraph:
 	@echo 3rdparty/ngraph INTERNAL BUILD/INSTALLATION SUCCESSFUL
 	@echo
 
-NGRAPH_BRIDGE_SRC = $(wildcard $(ROOTDIR)/3rdparty/ngraph_bridge/src/*.cc)
-NGRAPH_BRIDGE_SRC += $(wildcard $(ROOTDIR)/3rdparty/ngraph_bridge/src/ops/*.cc)
-NGRAPH_BRIDGE_OBJ = $(patsubst %.cc,%.cc.o,$(patsubst $(ROOTDIR)/3rdparty/ngraph_bridge/src/%,$(ROOTDIR)/3rdparty/ngraph_bridge/build/src/CMakeFiles/ngraph_bridge.dir/%,$(NGRAPH_BRIDGE_SRC)))
+NGRAPH_BRIDGE_SRC = $(wildcard $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src/*.cc)
+NGRAPH_BRIDGE_SRC += $(wildcard $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src/ops/*.cc)
+NGRAPH_BRIDGE_OBJ = $(patsubst %.cc,%.cc.o,$(patsubst $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src/%,$(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/build/src/CMakeFiles/ngraph-mxnet-bridge.dir/%,$(NGRAPH_BRIDGE_SRC)))
 
 $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
 
   # Set NGRAPH_CFLAGS ...
   NGRAPH_CFLAGS = \
     "-I$(NGRAPH_INSTALL_DIR)/include" \
-    "-I$(ROOTDIR)/3rdparty/ngraph_bridge/src" \
+    "-I$(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src" \
     -DMXNET_USE_NGRAPH=1
 
   ifeq ($(USE_NGRAPH_IE),1)
