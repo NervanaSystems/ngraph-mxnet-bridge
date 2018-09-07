@@ -1,2 +1,2 @@
 # ngraph-mxnet-bridge
-Bridge code to integration nGraph into MXNet
+Bridge code to integrate nGraph into MXNet
