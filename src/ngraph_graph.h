@@ -157,8 +157,8 @@ extern std::unordered_map<std::string,
     backends;
 
 inline std::string get_backend_name(const mxnet::Context &context) {
-  if (context.dev_type == mxnet::Context::NNP().dev_type) {
-    return "NNP";
+  // if (context.dev_type == mxnet::Context::NNP().dev_type) {
+  //   return "NNP";
 #if MXNET_USE_CUDA
   } else if (context.dev_type == mxnet::Context::GPU().dev_type) {
     return "GPU";
@@ -204,7 +204,8 @@ class Graph : public Node {
         context_(context),
         enable_fprop_cache(enable_fprop_cache) {
     fprop_cache = std::make_shared<ngraph::FpropCache>();
-    is_reuse_mem = context.dev_type != mxnet::Context::kNNP;
+    // is_reuse_mem = context.dev_type != mxnet::Context::kNNP;
+    is_reuse_mem = true;
   }
 
   ~Graph() {
