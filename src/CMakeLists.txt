@@ -24,7 +24,6 @@ set(SRC
     ngraph_nnvm_ops.cc
     ngraph_sgcompiler.cc
     ngraph_stats.cc
-    ngraph_subgraph.cc
     ngraph_utils.cc
     ops/batchnorm.cc
     ops/deconvolution.cc
