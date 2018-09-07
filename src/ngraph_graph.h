@@ -157,6 +157,7 @@ extern std::unordered_map<std::string,
     backends;
 
 inline std::string get_backend_name(const mxnet::Context &context) {
+  if(false) {
   // if (context.dev_type == mxnet::Context::NNP().dev_type) {
   //   return "NNP";
 #if MXNET_USE_CUDA
