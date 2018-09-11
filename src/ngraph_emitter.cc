@@ -1681,6 +1681,10 @@ void Emitter::CreateLossOps() {
         makeConstant(node, get_default(node, "grad_scale", std::string("1.0")));
     auto num_output = makeConstant(
         node, std::to_string(node->shape_.Size() / node->shape_[0]));
+    if (label->get_shape() != data->get_shape()) {
+      label = std::make_shared<ngraph::op::Reshape>(
+          label, pyrange(label->get_shape().size()), data->get_shape());
+    }
     return (label - data) * grad_scale / num_output;
   };
 }
