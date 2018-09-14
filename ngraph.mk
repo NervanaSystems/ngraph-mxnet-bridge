@@ -27,10 +27,10 @@
 #     NGRAPH_CFLAGS  - Compiler args needed to build the MXnet-nGraph bridge code.
 #
 #     NGRAPH_LDFLAGS_FOR_SHARED_LIBS - Static-linker flags for MXnet shared object(s) that
-#        potentially require libngraph.so at runtime, and which reside in MXnet's 'lib' directory.
+#        potentially require libngraph.so/.dylib at runtime, and which reside in MXnet's 'lib' directory.
 #
 #     NGRAPH_LDFLAGS_FOR_PROGS_IN_BIN - Static-linker flags for MXnet executables that
-#        potentially require libngraph.so at runtime, and which reside in MXnet's 'bin' directory.
+#        potentially require libngraph.so/.dylib at runtime, and which reside in MXnet's 'bin' directory.
 #
 #     NGRAPH_LDFLAGS_FOR_CPP_UNIT_TESTS_PROG - Static-linker flags for the program
 #        build/tests/cpp/mxnet_unit_tests
@@ -48,8 +48,14 @@
 #   USE_NGRAPH_IE
 #   NGRAPH_EXTRA_CMAKE_FLAGS
 #   NGRAPH_EXTRA_MAKE_FLAGS
+#   USE_BLAS - One of MXnet's supported BLAS implementations:
+#     "mkl", "blas", "atlas", "openblas", or "apple".
+#   USE_CUDA - "0" or "1"
 
 #===================================================================================================
+
+# We use Bash to have access to certain safer constructs, such as '[[' vs. '['.
+SHELL = /bin/bash
 
 # Check for some configuration problems...
 ifeq ($(USE_NGRAPH), 1)
@@ -97,32 +103,49 @@ ngraph:
 	@# directory to be in effect for all of them.  Thus our use of ';' ...
 	@if echo "$(NGRAPH_EXTRA_CMAKE_FLAGS)" | grep -q -e '-DCMAKE_INSTALL_PREFIX='; then \
 	  echo; \
-	  echo "It looks like NGRAPH_EXTRA_CMAKE_FLAGS is specifying a CMAKE_INSTALL_PREFIX value. This is not supported." >&2; \
+	  echo "It looks like NGRAPH_EXTRA_CMAKE_FLAGS is specifying a CMAKE_INSTALL_PREFIX value." \
+	       " This is not supported." >&2; \
 	  echo; \
 	  exit 1; \
 	  fi
 	cd "$(NGRAPH_BUILD_DIR)"; \
 	cmake "$(NGRAPH_SRC_DIR)" \
-	  -DCMAKE_INSTALL_PREFIX="$(NGRAPH_INSTALL_DIR)" -DUSE_CUDA=$(USE_CUDA) -DBLAS=$(USE_BLAS) \
-	  -DUSE_NGRAPH_DISTRIBUTED=$(USE_NGRAPH_DISTRIBUTED) $(NGRAPH_EXTRA_CMAKE_FLAGS); \
-	  $(MAKE) all $(NGRAPH_EXTRA_MAKE_FLAGS)
+	  "-DCMAKE_MODULE_PATH=$(ROOTDIR)/cmake/Modules" \
+	  "-DCMAKE_INSTALL_PREFIX=$(NGRAPH_INSTALL_DIR)" \
+	  "-DUSE_CUDA=$(USE_CUDA)" \
+	  "-DBLAS=$(USE_BLAS)" \
+	  "-DUSE_NGRAPH_DISTRIBUTED=$(USE_NGRAPH_DISTRIBUTED)" \
+	  "-DNGRAPH_EXTRA_CMAKE_FLAGS='$(NGRAPH_EXTRA_CMAKE_FLAGS)'" \
+	  $(NGRAPH_EXTRA_CMAKE_FLAGS); \
+	  $(MAKE) all ngraph-mxnet-bridge $(NGRAPH_EXTRA_MAKE_FLAGS)
 
 	# Copy contents of nGraph's 'lib' directory into MXnet's lib directory, taking care to
 	# preserve the relative symlinks used to support Linux shared-object versioning.
 	@echo
-	@echo COPYING 3rdparty/ngraph -SUPPLIED .SO FILES INTO MXNET LIBS DIRECTORY...
+	@echo "COPYING 3rdparty/ngraph -SUPPLIED .SO/.DYLIB FILES INTO MXNET LIBS DIRECTORY..."
 	@echo
 	mkdir -p "$(MXNET_LIB_DIR)"
-	cd "$(NGRAPH_INSTALL_DIR)/lib"; tar c --to-stdout . | tar x --dereference --directory "$(MXNET_LIB_DIR)"
+	@if [[ "$$(uname)" == "Darwin" ]]; then \
+	    cd "$(NGRAPH_INSTALL_DIR)/lib"; tar -c -f - . | tar -x -f - -C "$(MXNET_LIB_DIR)"; \
+	else \
+	    cd "$(NGRAPH_INSTALL_DIR)/lib"; tar c --to-stdout . | tar x --dereference --directory "$(MXNET_LIB_DIR)"; \
+	fi
+
+	@if [[ "$$(uname)" == "Darwin" ]]; then \
+	    echo; \
+	    echo "PATCHING MACH-O INSTALL NAMES, RPATH, ETC. FOR 3rdparty/ngraph -SUPPLIED .DYLIB FILES"; \
+	    echo; \
+	    $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/build-scripts/fixup-ngraph-osx-install-names.sh \
+		"$(MXNET_LIB_DIR)"; \
+	fi
 
 	@echo
-	@echo 3rdparty/ngraph INTERNAL BUILD/INSTALLATION SUCCESSFUL
+	@echo "3rdparty/ngraph INTERNAL BUILD/INSTALLATION SUCCESSFUL"
 	@echo
 
 NGRAPH_BRIDGE_SRC = $(wildcard $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src/*.cc)
 NGRAPH_BRIDGE_SRC += $(wildcard $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src/ops/*.cc)
 NGRAPH_BRIDGE_OBJ = $(patsubst %.cc,%.cc.o,$(patsubst $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src/%,$(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/build/src/CMakeFiles/ngraph-mxnet-bridge.dir/%,$(NGRAPH_BRIDGE_SRC)))
-
 $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
 
   # Set NGRAPH_CFLAGS ...
@@ -145,39 +168,71 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
   # nGraph provides some libraries that may compete with other libraries already installed
   # on the system. This provides the link-flags that, if provided early enough on the static-linker
   # command line, should ensure that the nGraph-supplied version is preferred.
+  ifeq ("$(shell uname)","Darwin")
+    NGRAPH_MKLML_LIB_ := mklml
+  else
+    NGRAPH_MKLML_LIB_ := mklml_intel
+  endif
+
   NGRAPH_COMMON_LIBRARY_LDFLAGS_ := \
     -ltbb \
     -liomp5 \
-    -lmklml_intel \
+    -l$(NGRAPH_MKLML_LIB_) \
     -lmkldnn
 
-  NGRAPH_LDFLAGS_ := \
-    -L$(MXNET_LIB_DIR) \
-    -Wl,-rpath-link=$(MXNET_LIB_DIR) \
-    $(NGRAPH_COMMON_LIBRARY_LDFLAGS_) \
-    -lngraph \
-    -lcpu_backend
+  ifeq ("$(shell uname)","Darwin")
+    NGRAPH_LDFLAGS_ := \
+      -L$(MXNET_LIB_DIR) \
+      $(NGRAPH_COMMON_LIBRARY_LDFLAGS_) \
+      -lngraph \
+      -lcpu_backend
 
-  ifeq ($(USE_NGRAPH_DISTRIBUTED), 1)
-    NGRAPH_LDFLAGS_ += $(shell mpicxx --showme:link)
+    ifeq ($(USE_NGRAPH_DISTRIBUTED), 1)
+      $(error "USE_NGRAPH_DISTRIBUTED=1 is not yet supported on OS X.")
+    endif
+
+    # The static-link-time flags for creating .so/.dylib files that will dynamically link to nGraph's libs
+    # at runtime.
+    NGRAPH_LDFLAGS_FOR_SHARED_LIBS := \
+      $(NGRAPH_LDFLAGS_) \
+      -Wl,-rpath,@loader_path
+
+    NGRAPH_LDFLAGS_FOR_PROGS_IN_BIN := \
+      $(NGRAPH_LDFLAGS_) \
+      -Wl,-rpath,@loader_path/../lib
+
+    NGRAPH_LDFLAGS_FOR_CPP_UNIT_TESTS_PROG := \
+      $(NGRAPH_LDFLAGS_) \
+      -Wl,-rpath,@loader_path/../../../lib
+  else
+    NGRAPH_LDFLAGS_ := \
+      -L$(MXNET_LIB_DIR) \
+      -Wl,-rpath-link=$(MXNET_LIB_DIR) \
+      $(NGRAPH_COMMON_LIBRARY_LDFLAGS_) \
+      -lngraph \
+      -lcpu_backend
+
+    ifeq ($(USE_NGRAPH_DISTRIBUTED), 1)
+      NGRAPH_LDFLAGS_ += $(shell mpicxx --showme:link)
+    endif
+
+    # The static-link-time flags for creating .so/.dylib files that will dynamically link to nGraph's libs
+    # at runtime.
+    NGRAPH_LDFLAGS_FOR_SHARED_LIBS := \
+      $(NGRAPH_LDFLAGS_) \
+      -Wl,-rpath='$${ORIGIN}' \
+      -Wl,--as-needed
+
+    NGRAPH_LDFLAGS_FOR_PROGS_IN_BIN := \
+      $(NGRAPH_LDFLAGS_) \
+      -Wl,-rpath='$${ORIGIN}/../lib' \
+      -Wl,--as-needed
+
+    NGRAPH_LDFLAGS_FOR_CPP_UNIT_TESTS_PROG := \
+      $(NGRAPH_LDFLAGS_) \
+      -Wl,-rpath='$${ORIGIN}/../../../lib' \
+      -Wl,--as-needed
   endif
-
-  # The static-link-time flags for creating .so files that will dynamically link to nGraph's libs
-  # at runtime.
-  NGRAPH_LDFLAGS_FOR_SHARED_LIBS := \
-    $(NGRAPH_LDFLAGS_) \
-    -Wl,-rpath='$${ORIGIN}' \
-    -Wl,--as-needed
-
-  NGRAPH_LDFLAGS_FOR_PROGS_IN_BIN := \
-    $(NGRAPH_LDFLAGS_) \
-    -Wl,-rpath='$${ORIGIN}/../lib' \
-    -Wl,--as-needed
-
-  NGRAPH_LDFLAGS_FOR_CPP_UNIT_TESTS_PROG := \
-    $(NGRAPH_LDFLAGS_) \
-    -Wl,-rpath='$${ORIGIN}/../../../lib' \
-    -Wl,--as-needed
 
 else
   #-------------------------------------------------------------------------------------------------
