@@ -432,7 +432,7 @@ std::shared_ptr<Graph> Compiler::GetNgraph() {
       }
     }
   }
-  CollapseSubgraph(&ngraph_, 1);
+  CollapseSubgraph(&ngraph_, 1, true);
 
   // assumes there is only one ngraph
   for (auto n : ngraph_.nodes_)
@@ -684,8 +684,18 @@ void Compiler::ParseNnvmGraph(const nnvm::Graph* graph_with_attrs) {
         node->inputs_.emplace_back(tmpnode);
       }
     }
+  } 
+  // create a map for easier input identification
+  std::unordered_map<const nnvm::Node*, NodePtr> node_map;
+  for (auto node : ngraph_.nodes_) {
+    if (node->multi_output_index_ == 0) {
+      node_map.insert({node->orig_node_.get(), node});
+    }
   }
-
+  // set up the inputs to all of the graph
+  for (auto input : idx.input_nodes()) {
+    ngraph_.inputs_.emplace_back(node_map.at(idx[input].source));
+  }
   // set up the outputs to the parsed bridge graph
   for (auto e : graph_.outputs) {
     ngraph_.outputs_.push_back(ngraph_[e]);
