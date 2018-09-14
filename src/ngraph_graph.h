@@ -157,9 +157,9 @@ extern std::unordered_map<std::string,
     backends;
 
 inline std::string get_backend_name(const mxnet::Context &context) {
-  if(false) {
-  // if (context.dev_type == mxnet::Context::NNP().dev_type) {
-  //   return "NNP";
+  if (false) {
+// if (context.dev_type == mxnet::Context::NNP().dev_type) {
+//   return "NNP";
 #if MXNET_USE_CUDA
   } else if (context.dev_type == mxnet::Context::GPU().dev_type) {
     return "GPU";
@@ -237,7 +237,8 @@ class Graph : public Node {
 
   // Add a node to the graph
   void AddNode(NodePtr node) {
-    entry_map_[MapEntry{node->orig_node_.get(), node->multi_output_index_}] = node;
+    entry_map_[MapEntry{node->orig_node_.get(), node->multi_output_index_}] =
+        node;
     nodes_.emplace_back(node);
   }
 

@@ -55,7 +55,7 @@ inline bool ngraph_log_viz() {
 inline bool ngraph_log_timer() {
   return dmlc::GetEnv("MXNET_NGRAPH_TIMER", false);
 }
-extern const bool ngraph_log_verbose_detail; 
+extern const bool ngraph_log_verbose_detail;
 
 // simple timer for sequential blocks of code
 class Timer {
@@ -142,9 +142,14 @@ inline std::string get_default(const NodePtr& node, const std::string& key,
 
 inline int get_default(const NodePtr& node, const std::string& key,
                        const int default_val) {
-  return node->orig_node_->attrs.dict.count(key)
-             ? std::stoi(node->orig_node_->attrs.dict[key])
-             : default_val;
+  auto count = node->orig_node_->attrs.dict.count(key);
+  if (count) {
+    auto val = node->orig_node_->attrs.dict[key];
+    if (val != "None") {
+      return std::stoi(node->orig_node_->attrs.dict[key]);
+    }
+  }
+  return default_val;
 }
 
 inline float get_default(const NodePtr& node, const std::string& key,

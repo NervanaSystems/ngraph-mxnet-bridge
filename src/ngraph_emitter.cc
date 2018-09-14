@@ -998,6 +998,15 @@ void Emitter::CreateLayerOps() {
         create_slice_op(op_map_[node->inputs_[0]], node->orig_node_->attrs);
     return ng_slice;
   };
+  ngraph_op_funcs_["slice_axis"] = [this](const NodePtr& node) {
+    auto input = op_map_[node->inputs_[0]];
+    auto shape = node->inputs_[0]->shape_;
+    size_t axis = get_default_transformed_axis(node, "axis", 1, shape.ndim());
+    size_t begin = get_default_transformed_axis(node, "begin", 0, shape[axis]);
+    size_t end =
+        get_default_transformed_axis(node, "end", shape[axis], shape[axis]);
+    return slice_data_on_axis(input, begin, end - begin, axis, false);
+  };
 
   // stack takes a list of tensors of equal shape and
   // concatenates them along a given axis expanded for each input
