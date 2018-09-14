@@ -457,6 +457,72 @@ void Emitter::CreateUnaryOps() {
       return ReduceAxes(node, ngraph::builder::l2_norm);
     }
   };
+  ngraph_op_funcs_["L2Normalization"] =
+      [this](const NodePtr& node) -> NgraphNodePtr {
+    auto eps = get_default(node, "eps", std::string("1e-10"));
+
+    auto l2_norm = [&eps, &node](
+        const NgraphNodePtr& input,
+        const ngraph::AxisSet& reduction_axes) -> NgraphNodePtr {
+      auto x2 = input * input;
+      NgraphNodePtr x2sum =
+          std::make_shared<ngraph::op::Sum>(x2, reduction_axes);
+
+      x2sum = x2sum + makeConstant(x2sum->get_element_type(), x2sum->get_shape(), eps);
+
+      NgraphNodePtr norm = std::make_shared<ngraph::op::Sqrt>(x2sum);
+
+      auto reshape = input->get_shape();
+      for (auto i : reduction_axes) reshape[i] = 1;
+
+      norm = std::make_shared<ngraph::op::Reshape>(
+          norm, pyrange(norm->get_shape().size()), reshape);
+
+      return ngraph::builder::make_with_numpy_broadcast<ngraph::op::Divide>(input, norm);
+    };
+    auto norm_last_dims = [&l2_norm](NgraphNodePtr input, size_t num_untouched_dims) {
+      auto input_shape = input->get_shape();
+      auto input_rank = input_shape.size();
+      ngraph::Shape reshape;
+      for (size_t i = 0; i < num_untouched_dims; ++i) {
+        reshape.push_back(input_shape[i]);
+      }
+      reshape.push_back(1);
+      for (size_t i = num_untouched_dims; i < input_rank; ++i) {
+        reshape[num_untouched_dims] *= input_shape[i];
+      }
+      input = std::make_shared<ngraph::op::Reshape>(
+          input, pyrange(input_rank), reshape);
+      return l2_norm(input, {num_untouched_dims});
+    };
+
+    auto mode = get_default(node, "mode", std::string("instance"));
+
+    auto input = op_map_[node->inputs_[0]];
+    auto input_shape = input->get_shape();
+    auto input_rank = input_shape.size();
+
+    if (input_rank == 1) {
+      return l2_norm(input, {0});
+    }
+    if (mode == "channel") {
+      return l2_norm(input, {1});
+    }
+    if (mode == "instance") {
+      auto norm = norm_last_dims(input, 1);
+      return std::make_shared<ngraph::op::Reshape>(
+          norm, pyrange(norm->get_shape().size()), input_shape);
+    }
+    if (mode == "spatial") {
+      auto norm = norm_last_dims(input, 2);
+      return std::make_shared<ngraph::op::Reshape>(
+          norm, pyrange(norm->get_shape().size()), input_shape);
+    }
+    std::ostringstream os;
+    os << "NGRAPH_BRIDGE: L2Normalization: unrecognized mode " << mode;
+    throw std::runtime_error(os.str());
+    return input;
+  };
   ngraph_op_funcs_["mean"] = [this](const NodePtr& node) {
     return ReduceAxes(node, ngraph::builder::mean);
   };
