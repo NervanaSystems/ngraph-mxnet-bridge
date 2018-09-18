@@ -700,6 +700,12 @@ void Emitter::CreateBinaryOps() {
     return std::make_shared<ngraph::op::Reshape>(
         arg0, pyrange(arg0->get_shape().size()), out_shape);
   };
+  ngraph_op_funcs_["shape_array"] = [this](const NodePtr& node) {
+    auto input = op_map_[node->inputs_[0]];
+    return ngraph::op::Constant::create(ngraph::element::i64,
+                                        ngraph::Shape{input->get_shape().size()},
+                                        input->get_shape());
+  };
   ngraph_op_funcs_["_plus_scalar"] = [this](const NodePtr& node) {
     return CreateScalarOp<ngraph::op::Add>(node);
   };
