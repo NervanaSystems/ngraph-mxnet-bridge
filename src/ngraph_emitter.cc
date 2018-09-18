@@ -1069,7 +1069,8 @@ void Emitter::CreateLayerOps() {
     // run concat
     return std::make_shared<ngraph::op::Concat>(args, axis);
   };
-
+  // TODO(mbrookhart): It might be better to implement this with
+  // Broadcast instead of concat?
   ngraph_op_funcs_["repeat"] = [this](const NodePtr& node) {
     auto input = op_map_[node->inputs_[0]];
     auto shape = input->get_shape();
