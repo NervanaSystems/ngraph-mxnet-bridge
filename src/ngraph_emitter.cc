@@ -27,6 +27,7 @@
 
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
+#include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
 #include "ops/deconvolution.h"
@@ -699,6 +700,12 @@ void Emitter::CreateBinaryOps() {
     return std::make_shared<ngraph::op::Reshape>(
         arg0, pyrange(arg0->get_shape().size()), out_shape);
   };
+  ngraph_op_funcs_["shape_array"] = [this](const NodePtr& node) {
+    auto input = op_map_[node->inputs_[0]];
+    return ngraph::op::Constant::create(
+        ngraph::element::i64, ngraph::Shape{input->get_shape().size()},
+        input->get_shape());
+  };
   ngraph_op_funcs_["_plus_scalar"] = [this](const NodePtr& node) {
     return CreateScalarOp<ngraph::op::Add>(node);
   };
@@ -1035,6 +1042,17 @@ void Emitter::CreateLayerOps() {
     NgraphNodePtr ng_slice_like =
         create_slice_like_op(op_map_[node->inputs_[0]], op_map_[node->inputs_[1]], node->orig_node_->attrs);
     return ng_slice_like;
+  };
+
+  // squeeze op
+  ngraph_op_funcs_["squeeze"] = [this](const NodePtr& node) {
+    auto input = op_map_[node->inputs_[0]];
+    std::vector<nnvm::TShape> ishapes{NShape_to_TShape(input->get_shape())};
+    std::vector<nnvm::TShape> oshapes(1);
+    mxnet::op::SqueezeShape(node->orig_node_->attrs, &ishapes, &oshapes);
+    return std::make_shared<ngraph::op::Reshape>(
+        input, pyrange(input->get_shape().size()),
+        TShape_to_NShape(oshapes[0]));
   };
 
   // stack takes a list of tensors of equal shape and

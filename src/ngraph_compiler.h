@@ -175,6 +175,7 @@ static std::unordered_set<std::string> ops_no_head_grad{
     "broadcast_not_equal",
     "LinearRegressionOutput",
     "MakeLoss",
+    "shape_array",
     "stop_gradient",
 };
 
