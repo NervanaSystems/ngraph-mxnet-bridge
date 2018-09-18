@@ -730,6 +730,26 @@ void Emitter::CreateBinaryOps() {
     auto arg1 = op_map_[node->inputs_[0]];
     return std::make_shared<ngraph::op::Divide>(arg0, arg1);
   };
+  ngraph_op_funcs_["_power_scalar"] = [this](const NodePtr& node) {
+    return CreateScalarOp<ngraph::op::Power>(node);
+  };
+  ngraph_op_funcs_["_rpower_scalar"] = [this](const NodePtr& node) {
+    return std::make_shared<ngraph::op::Power>(
+        makeConstant(node, get_default(node, "scalar", std::string("0"))),
+        op_map_[node->inputs_[0]]);
+  };
+  ngraph_op_funcs_["_maximum_scalar"] = [this](const NodePtr& node) {
+    return CreateScalarOp<ngraph::op::Maximum>(node);
+  };
+  ngraph_op_funcs_["_minimum_scalar"] = [this](const NodePtr& node) {
+    return CreateScalarOp<ngraph::op::Minimum>(node);
+  };
+  ngraph_op_funcs_["_hypot_scalar"] = [this](const NodePtr& node) {
+    auto A = op_map_[node->inputs_[0]];
+    auto B = makeConstant(node, get_default(node, "scalar", std::string("0")));
+    return std::make_shared<ngraph::op::Sqrt>((A * A) + (B * B));
+  };
+
   ngraph_op_funcs_["_equal_scalar"] = [this](const NodePtr& node) {
     return cast_result(CreateScalarOp<ngraph::op::Equal>(node),
                        getType(node->dtype_));
@@ -1017,6 +1037,12 @@ void Emitter::CreateLayerOps() {
         get_default_transformed_axis(node, "end", shape[axis], shape[axis]);
     return slice_data_on_axis(input, begin, end - begin, axis, false);
   };
+  // slice_like op
+  ngraph_op_funcs_["slice_like"] = [this](const NodePtr& node) -> NgraphNodePtr {
+    NgraphNodePtr ng_slice_like =
+        create_slice_like_op(op_map_[node->inputs_[0]], op_map_[node->inputs_[1]], node->orig_node_->attrs);
+    return ng_slice_like;
+  };
 
   // squeeze op
   ngraph_op_funcs_["squeeze"] = [this](const NodePtr& node) {
@@ -1061,7 +1087,40 @@ void Emitter::CreateLayerOps() {
     // run concat
     return std::make_shared<ngraph::op::Concat>(args, axis);
   };
+  // TODO(mbrookhart): It might be better to implement this with
+  // Broadcast instead of concat?
+  ngraph_op_funcs_["repeat"] = [this](const NodePtr& node) {
+    auto input = op_map_[node->inputs_[0]];
+    auto shape = input->get_shape();
+    // get the concat axis
+    auto repeats = get_default(node, "repeats", 0);
+    auto axis = get_default(node, "axis", std::string("None"));
+    size_t real_axis = 0;
 
+    if (axis == "None") {
+      size_t size = 1;
+      for (auto i : shape) size *= i;
+      input = std::make_shared<ngraph::op::Reshape>(
+          input, pyrange(shape.size()), ngraph::Shape{size, 1});
+      real_axis = 1;
+    } else {
+      real_axis = std::stoi(axis);
+      while (real_axis < 0) real_axis += shape.size();
+      auto new_shape = shape;
+      new_shape.insert(new_shape.begin() + real_axis + 1, 1);
+      input = std::make_shared<ngraph::op::Reshape>(
+          input, pyrange(shape.size()), new_shape);
+      real_axis += 1;
+    }
+    // tile along all the axis
+    std::vector<NgraphNodePtr> args;
+    for (size_t j = 0; j < repeats; ++j) args.push_back(input);
+    auto output = std::make_shared<ngraph::op::Concat>(args, real_axis);
+
+    return std::make_shared<ngraph::op::Reshape>(
+        output, pyrange(output->get_shape().size()),
+        TShape_to_NShape(node->shape_));
+  };
   // tile takes a tensor and replicates it along
   // a given set of axes a given number of times
   ngraph_op_funcs_["tile"] = [this](const NodePtr& node) {

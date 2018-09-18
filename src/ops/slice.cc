@@ -14,38 +14,37 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "slice.h"
 #include "../../../../src/operator/tensor/matrix_op-inl.h"
 #include "../ngraph_sgcompiler_utils.h"
+#include "slice.h"
 
 namespace ngraph_bridge {
-
-NgraphNodePtr create_slice_op(const NgraphNodePtr& node,
-                              const nnvm::NodeAttrs& attrs) {
-  const mxnet::op::SliceParam& param =
-      nnvm::get<mxnet::op::SliceParam>(attrs.parsed);
+NgraphNodePtr get_slice(const NgraphNodePtr& node,
+                        const nnvm::Tuple<dmlc::optional<int>>& param_begin,
+                        const nnvm::Tuple<dmlc::optional<int>>& param_end,
+                        const nnvm::Tuple<dmlc::optional<int>>& param_step) {
   nnvm::TShape tshape = NShape_to_TShape(node->get_shape());
   ngraph::Coordinate ng_begin, ng_end, ng_step;
   ngraph::AxisSet reverse_axes;
-  const bool reverse = std::any_of(param.step.begin(), param.step.end(),
+  const bool reverse = std::any_of(param_step.begin(), param_step.end(),
                                    [](const dmlc::optional<int>& s) {
                                      return s.has_value() && s.value() < 0;
                                    });
 
-  for (mxnet::index_t i = 0; i < param.begin.ndim(); ++i) {
+  for (mxnet::index_t i = 0; i < param_begin.ndim(); ++i) {
     const int len = tshape[i];
 
     int s = 1;
-    if (param.step[i].has_value()) {
-      s = param.step[i].value();
+    if (param_step[i].has_value()) {
+      s = param_step[i].value();
       if (s == 0) {
         s = 1;
       }
     }
 
     int b = 0;
-    if (param.begin[i].has_value()) {
-      b = param.begin[i].value();
+    if (param_begin[i].has_value()) {
+      b = param_begin[i].value();
       if (b < 0) {
         b += len;
       }
@@ -54,8 +53,8 @@ NgraphNodePtr create_slice_op(const NgraphNodePtr& node,
     }
 
     int e = len;
-    if (param.end[i].has_value()) {
-      e = param.end[i].value();
+    if (param_end[i].has_value()) {
+      e = param_end[i].value();
       if (e < 0) {
         e += len;
       }
@@ -80,7 +79,7 @@ NgraphNodePtr create_slice_op(const NgraphNodePtr& node,
     ng_step.push_back(s);
   }
 
-  for (mxnet::index_t i = param.begin.ndim(); i < tshape.ndim(); ++i) {
+  for (mxnet::index_t i = param_begin.ndim(); i < tshape.ndim(); ++i) {
     ng_begin.push_back(0);
     ng_end.push_back(tshape[i]);
     ng_step.push_back(1);
@@ -96,5 +95,27 @@ NgraphNodePtr create_slice_op(const NgraphNodePtr& node,
         std::make_shared<ngraph::op::Slice>(node, ng_begin, ng_end, ng_step);
   }
   return slice;
+}
+
+NgraphNodePtr create_slice_op(const NgraphNodePtr& node,
+                              const nnvm::NodeAttrs& attrs) {
+  const mxnet::op::SliceParam& param =
+      nnvm::get<mxnet::op::SliceParam>(attrs.parsed);
+  return get_slice(node, param.begin, param.end, param.step);
+}
+
+NgraphNodePtr create_slice_like_op(const NgraphNodePtr& node,
+                                   const NgraphNodePtr& out,
+                                   const nnvm::NodeAttrs& attrs) {
+  const mxnet::op::SliceLikeParam& param =
+      nnvm::get<mxnet::op::SliceLikeParam>(attrs.parsed);
+  nnvm::TShape shape = NShape_to_TShape(node->get_shape());
+  nnvm::TShape tshape = NShape_to_TShape(out->get_shape());
+  nnvm::Tuple<dmlc::optional<int>> param_begin;
+  nnvm::Tuple<dmlc::optional<int>> param_end;
+  nnvm::Tuple<dmlc::optional<int>> param_step;
+  mxnet::op::SliceLikeInferRanges(shape, tshape, param.axes, &param_begin,
+                                  &param_end, &param_step);
+  return get_slice(node, param_begin, param_end, param_step);
 }
 }  // namespace ngraph_bridge
