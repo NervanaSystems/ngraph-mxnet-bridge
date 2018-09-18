@@ -27,6 +27,7 @@
 
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
+#include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
 #include "ops/deconvolution.h"
@@ -468,7 +469,8 @@ void Emitter::CreateUnaryOps() {
       NgraphNodePtr x2sum =
           std::make_shared<ngraph::op::Sum>(x2, reduction_axes);
 
-      x2sum = x2sum + makeConstant(x2sum->get_element_type(), x2sum->get_shape(), eps);
+      x2sum = x2sum +
+              makeConstant(x2sum->get_element_type(), x2sum->get_shape(), eps);
 
       NgraphNodePtr norm = std::make_shared<ngraph::op::Sqrt>(x2sum);
 
@@ -478,9 +480,11 @@ void Emitter::CreateUnaryOps() {
       norm = std::make_shared<ngraph::op::Reshape>(
           norm, pyrange(norm->get_shape().size()), reshape);
 
-      return ngraph::builder::make_with_numpy_broadcast<ngraph::op::Divide>(input, norm);
+      return ngraph::builder::make_with_numpy_broadcast<ngraph::op::Divide>(
+          input, norm);
     };
-    auto norm_last_dims = [&l2_norm](NgraphNodePtr input, size_t num_untouched_dims) {
+    auto norm_last_dims = [&l2_norm](NgraphNodePtr input,
+                                     size_t num_untouched_dims) {
       auto input_shape = input->get_shape();
       auto input_rank = input_shape.size();
       ngraph::Shape reshape;
@@ -491,8 +495,8 @@ void Emitter::CreateUnaryOps() {
       for (size_t i = num_untouched_dims; i < input_rank; ++i) {
         reshape[num_untouched_dims] *= input_shape[i];
       }
-      input = std::make_shared<ngraph::op::Reshape>(
-          input, pyrange(input_rank), reshape);
+      input = std::make_shared<ngraph::op::Reshape>(input, pyrange(input_rank),
+                                                    reshape);
       return l2_norm(input, {num_untouched_dims});
     };
 
@@ -1006,6 +1010,17 @@ void Emitter::CreateLayerOps() {
     size_t end =
         get_default_transformed_axis(node, "end", shape[axis], shape[axis]);
     return slice_data_on_axis(input, begin, end - begin, axis, false);
+  };
+
+  // squeeze op
+  ngraph_op_funcs_["squeeze"] = [this](const NodePtr& node) {
+    auto input = op_map_[node->inputs_[0]];
+    std::vector<nnvm::TShape> ishapes{NShape_to_TShape(input->get_shape())};
+    std::vector<nnvm::TShape> oshapes(1);
+    mxnet::op::SqueezeShape(node->orig_node_->attrs, &ishapes, &oshapes);
+    return std::make_shared<ngraph::op::Reshape>(
+        input, pyrange(input->get_shape().size()),
+        TShape_to_NShape(oshapes[0]));
   };
 
   // stack takes a list of tensors of equal shape and
