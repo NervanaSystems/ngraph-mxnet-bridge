@@ -1030,6 +1030,12 @@ void Emitter::CreateLayerOps() {
         get_default_transformed_axis(node, "end", shape[axis], shape[axis]);
     return slice_data_on_axis(input, begin, end - begin, axis, false);
   };
+  // slice_like op
+  ngraph_op_funcs_["slice_like"] = [this](const NodePtr& node) -> NgraphNodePtr {
+    NgraphNodePtr ng_slice_like =
+        create_slice_like_op(op_map_[node->inputs_[0]], op_map_[node->inputs_[1]], node->orig_node_->attrs);
+    return ng_slice_like;
+  };
 
   // stack takes a list of tensors of equal shape and
   // concatenates them along a given axis expanded for each input
