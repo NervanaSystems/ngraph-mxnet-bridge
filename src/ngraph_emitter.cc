@@ -1074,7 +1074,6 @@ void Emitter::CreateLayerOps() {
                    &is_ascend);
     auto topk = std::make_shared<ngraph::op::TopK>(
         input, axis, ngraph::element::i64, k, is_ascend);
-    ng_normalized_data = std::make_shared<ngraph::op::GetOutputElement>(BN, 0);
     auto out =
         cast_result(std::make_shared<ngraph::op::GetOutputElement>(topk, 0),
                     getType(param.dtype));
