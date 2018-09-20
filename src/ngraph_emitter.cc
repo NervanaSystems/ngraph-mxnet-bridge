@@ -992,6 +992,37 @@ struct PoolingParams {
 
 // MXNet high level ops generating function
 void Emitter::CreateLayerOps() {
+  ngraph_op_funcs_["add_n"] = [this](const NodePtr& node) {
+    std::cout << "running add_n " << node->inputs.size() << std::endl;
+    NgraphNodePtr result = op_map[node->inputs[0]];
+    for (size_t i = 1; i < node->inputs.size(); ++i) {
+      result = result + op_map_[node->inputs[i]];
+    }
+    return result;
+  }
+  ngraph_op_funcs_["Crop"] = [this](const NodePtr& node) {
+    std::cout << "running Crop" << node->inputs.size() << std::endl;
+    NgraphNodePtr result = op_map[node->inputs[0]];
+    
+    if (node->inputs.size() == 1) {
+      auto h_w = get_default(node, "h_w", ngraph::AxisVector());
+      mxnet::op::SliceParam param;
+      auto in_shape = node->shape_;
+      param.begin = {in_shape[0], in_shape[1], 0, 0};
+      param.end = {in_shape[0], in_shape[1], h_w[0], h_w[1]};
+      param.step = {1};
+      return get_slice(node, param.begin, param.end, param.step);
+    }
+    else if (node->inputs.size() == 2) {
+      return NgraphNodePtr(nullptr);  
+    }
+    else {
+        throw std::runtime_error("Crop unexpected number of inputs (expecting 1 or 2): " + 
+                                 std::to_string(node->input.size()));
+    } 
+    return NgraphNodePtr(nullptr);  
+  }
+
   // In mxnet, split takes a tensor and creates multiple tensors from
   // equal slices along 1 axis. The compiler creates a subgraph where
   // each of those outputs is a single node.  This function creates
