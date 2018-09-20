@@ -1038,9 +1038,11 @@ void Emitter::CreateLayerOps() {
     return slice_data_on_axis(input, begin, end - begin, axis, false);
   };
   // slice_like op
-  ngraph_op_funcs_["slice_like"] = [this](const NodePtr& node) -> NgraphNodePtr {
-    NgraphNodePtr ng_slice_like =
-        create_slice_like_op(op_map_[node->inputs_[0]], op_map_[node->inputs_[1]], node->orig_node_->attrs);
+  ngraph_op_funcs_["slice_like"] =
+      [this](const NodePtr& node) -> NgraphNodePtr {
+    NgraphNodePtr ng_slice_like = create_slice_like_op(
+        op_map_[node->inputs_[0]], op_map_[node->inputs_[1]],
+        node->orig_node_->attrs);
     return ng_slice_like;
   };
 
@@ -1053,6 +1055,35 @@ void Emitter::CreateLayerOps() {
     return std::make_shared<ngraph::op::Reshape>(
         input, pyrange(input->get_shape().size()),
         TShape_to_NShape(oshapes[0]));
+  };
+
+  // topk op
+  ngraph_op_funcs_["topk"] = [this](const NodePtr& node) -> NgraphNodePtr {
+    auto input = op_map_[node->inputs_[0]];
+    auto& attrs = node->orig_node_->attrs;
+    const mxnet::op::TopKParam& param =
+        nnvm::get<mxnet::op::TopKParam>(attrs.parsed);
+    int batch_size, element_num;  // number of batches + the size of each batch
+    int axis = 0;
+    bool do_transpose = false;
+    bool is_ascend = false;
+    int k = 0;
+    nnvm::TShape target_shape;
+    ParseTopKParam(NShape_to_TShape(input->get_shape()), param, &target_shape,
+                   &batch_size, &element_num, &axis, &k, &do_transpose,
+                   &is_ascend);
+    auto topk = std::make_shared<ngraph::op::TopK>(
+        input, axis, ngraph::element::i64, k, is_ascend);
+    ng_normalized_data = std::make_shared<ngraph::op::GetOutputElement>(BN, 0);
+    auto out =
+        cast_result(std::make_shared<ngraph::op::GetOutputElement>(topk, 0),
+                    getType(param.dtype));
+    /* auto out2 = */
+    /*     cast_result(std::make_shared<ngraph::op::GetOutputElement>(topk, 1),
+     */
+    /*                 getType(param.dtype)); */
+    /* multi_output_map_[node] = {out, out2}; */
+    return out;
   };
 
   // stack takes a list of tensors of equal shape and
