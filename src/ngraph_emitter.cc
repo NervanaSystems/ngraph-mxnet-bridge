@@ -1075,15 +1075,12 @@ void Emitter::CreateLayerOps() {
                    &is_ascend);
     auto topk = std::make_shared<ngraph::op::TopK>(
         input, axis, ngraph::element::i64, k, is_ascend);
-    auto out =
+    auto indices =
         cast_result(std::make_shared<ngraph::op::GetOutputElement>(topk, 0),
                     getType(param.dtype));
-    /* auto out2 = */
-    /*     cast_result(std::make_shared<ngraph::op::GetOutputElement>(topk, 1),
-     */
-    /*                 getType(param.dtype)); */
-    /* multi_output_map_[node] = {out, out2}; */
-    return out;
+    /* auto vals = std::make_shared<ngraph::op::GetOutputElement>(topk, 1); */
+    /* multi_output_map_[node] = {indices, vals}; */
+    return indices;
   };
 
   // stack takes a list of tensors of equal shape and
@@ -1908,6 +1905,15 @@ void Emitter::UnsupportedOps() {
         node->printOpDetails(std::cout);
         std::cout << std::endl;
       }
+      out = false;
+    }
+    return out;
+  };
+  supported_ops["topk"] = [](const NodePtr& node) {
+    bool out = true;
+    const std::string ret_type =
+        get_default(node, "ret_typ", std::string("indices"));
+    if (ret_type != "indices") {
       out = false;
     }
     return out;
