@@ -28,6 +28,7 @@
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
 #include "../../../src/operator/tensor/matrix_op-inl.h"
+#include "../../../src/operator/tensor/ordering_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
 #include "ops/deconvolution.h"
