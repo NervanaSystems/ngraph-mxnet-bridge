@@ -1095,7 +1095,7 @@ void Emitter::CreateLayerOps() {
     // get the concat axis
     auto repeats = get_default(node, "repeats", 0);
     auto axis = get_default(node, "axis", std::string("None"));
-    size_t real_axis = 0;
+    int real_axis = 0;
 
     if (axis == "None") {
       size_t size = 1;
@@ -1411,17 +1411,17 @@ void Emitter::CreateLayerOps() {
       // by this version of
       // nGraph's BatchNorm operator. So for now we'll avoid using it.  -cconvey
       // 2018-04-12.
-      // if (ngraph_bn_op_available)
-      if (false) {
-        const NgraphNodePtr ng_normalized_data =
-            std::make_shared<ngraph::op::BatchNorm>(
-                eps, ng_actual_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
-                ng_in_moving_var, true);
+      // if (ngraph_bn_op_available) {
+      //   const NgraphNodePtr ng_normalized_data =
+      //       std::make_shared<ngraph::op::BatchNorm>(
+      //           eps, ng_actual_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
+      //           ng_in_moving_var, true);
 
-        multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
-                                   ng_in_moving_var};
-        return ng_normalized_data;
-      } else {
+      //   multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
+      //                              ng_in_moving_var};
+      //   return ng_normalized_data;
+      // } else {
+      {
         // NOTE: This call is intentionally the same as another call below.  The
         // function called
         // here produces a subgraph suitable for training because all of its

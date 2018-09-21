@@ -73,6 +73,7 @@ class Node {
            << "\"];";
     return stream.str();
   }
+  virtual ~Node(){};
   // basic information about node
   const NodeType type_;
   const nnvmNodePtr orig_node_;
@@ -157,19 +158,18 @@ extern std::unordered_map<std::string,
     backends;
 
 inline std::string get_backend_name(const mxnet::Context &context) {
-  if (false) {
-// if (context.dev_type == mxnet::Context::NNP().dev_type) {
-//   return "NNP";
-#if MXNET_USE_CUDA
-  } else if (context.dev_type == mxnet::Context::GPU().dev_type) {
-    return "GPU";
-#endif
-  } else if (context.dev_type == mxnet::Context::CPU().dev_type) {
+  if (context.dev_type == mxnet::Context::CPU().dev_type) {
 #ifdef MXNET_USE_NGRAPH_IE
     return "IE";
 #else
     return "CPU";
 #endif
+#if MXNET_USE_CUDA
+  } else if (context.dev_type == mxnet::Context::GPU().dev_type) {
+    return "GPU";
+#endif
+// } else if (context.dev_type == mxnet::Context::NNP().dev_type) {
+//   return "NNP";
   } else {
     return "INTERPRETER";
   }
@@ -209,7 +209,7 @@ class Graph : public Node {
     is_reuse_mem = true;
   }
 
-  ~Graph() {
+  ~Graph() override {
     // Clean up nGraph's compilation cache so we don't have a memory leak
     auto backend = GetBackendFromContext(context_);
     for (int i = 0; i < kGraphExeModeCount; ++i) {

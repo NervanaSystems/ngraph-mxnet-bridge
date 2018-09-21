@@ -35,7 +35,7 @@ class NGraphStats {
 
   // disable copy
   NGraphStats(NGraphStats const&) = delete;
-  void operator=(NGraphStats const&) = delete;
+  NGraphStats& operator=(NGraphStats const&) = delete;
 
   void add(const std::shared_ptr<Graph>& g) { graphs_.push_back(g); }
   void dump(std::ostream& stream);
