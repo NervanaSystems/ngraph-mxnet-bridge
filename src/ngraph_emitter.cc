@@ -1006,37 +1006,37 @@ void Emitter::CreateLayerOps() {
     }
     return result;
   };
-  
+
   // Crop expects input to be 4D, only 2nd and 3rd dims data
   // are modified.
   ngraph_op_funcs_["Crop"] = [this](const NodePtr& node) {
-    ngraph::AxisVector offset{0,0};
+    ngraph::AxisVector offset{0, 0};
     offset = get_default(node, "offset", offset);
     bool center_crop = get_default(node, "center_crop", false);
-    NgraphNodePtr input = op_map_[node->inputs_[0]]; 
+    NgraphNodePtr input = op_map_[node->inputs_[0]];
     const auto& in_shape = input->get_shape();
-   
-    ngraph::AxisVector out_hw{0,0};
+
+    ngraph::AxisVector out_hw{0, 0};
     if (node->inputs_.size() == 1) {
       out_hw = get_default(node, "h_w", ngraph::AxisVector());
     }
     // use second input shape as crop reference
     else if (node->inputs_.size() == 2) {
-      NgraphNodePtr ref = op_map_[node->inputs_[1]]; 
+      NgraphNodePtr ref = op_map_[node->inputs_[1]];
       const auto& ref_shape = ref->get_shape();
       out_hw[0] = ref_shape[2];
       out_hw[1] = ref_shape[3];
+    } else {
+      throw std::runtime_error(
+          "Crop unexpected number of inputs (expecting 1 or 2): " +
+          std::to_string(node->inputs_.size()));
     }
-    else {
-      throw std::runtime_error("Crop unexpected number of inputs (expecting 1 or 2): " + 
-                               std::to_string(node->inputs_.size()));
-    }
-    
+
     if (center_crop) {
-      offset[0] = (in_shape[2] - out_hw[0])/2;
-      offset[1] = (in_shape[3] - out_hw[1])/2;
+      offset[0] = (in_shape[2] - out_hw[0]) / 2;
+      offset[1] = (in_shape[3] - out_hw[1]) / 2;
     }
-    
+
     ngraph::Coordinate begin(in_shape.size(), 0);
     ngraph::Coordinate end(in_shape.begin(), in_shape.end());
     ngraph::Coordinate step(in_shape.size(), 1);
@@ -1044,7 +1044,7 @@ void Emitter::CreateLayerOps() {
     begin[3] = offset[1];
     end[2] = out_hw[0] + offset[0];
     end[3] = out_hw[1] + offset[1];
-     
+
     return std::make_shared<ngraph::op::Slice>(input, begin, end, step);
   };
 
@@ -1087,9 +1087,11 @@ void Emitter::CreateLayerOps() {
     return slice_data_on_axis(input, begin, end - begin, axis, false);
   };
   // slice_like op
-  ngraph_op_funcs_["slice_like"] = [this](const NodePtr& node) -> NgraphNodePtr {
-    NgraphNodePtr ng_slice_like =
-        create_slice_like_op(op_map_[node->inputs_[0]], op_map_[node->inputs_[1]], node->orig_node_->attrs);
+  ngraph_op_funcs_["slice_like"] =
+      [this](const NodePtr& node) -> NgraphNodePtr {
+    NgraphNodePtr ng_slice_like = create_slice_like_op(
+        op_map_[node->inputs_[0]], op_map_[node->inputs_[1]],
+        node->orig_node_->attrs);
     return ng_slice_like;
   };
 
