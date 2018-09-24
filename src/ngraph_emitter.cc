@@ -870,7 +870,7 @@ void Emitter::CreateBinaryOps() {
      */
     auto input = op_map_[node->inputs_[0]];
     auto sigma =
-        makeConstant(node, get_default(node, "scalar", std::string("0")));
+        makeConstant(node, get_default(node, "scalar", std::string("1.0")));
     auto sigma_sq = sigma * sigma;
     auto inv_sigma_sq = std::make_shared<ngraph::op::Divide>(
         makeConstant(node, "1.0"), sigma_sq);
