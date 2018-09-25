@@ -155,11 +155,14 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
   NGRAPH_CFLAGS = \
     "-I$(NGRAPH_INSTALL_DIR)/include" \
     "-I$(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src" \
-    -DMXNET_USE_NGRAPH=1 \
-    -DMXNET_USE_CUDA=1
+    -DMXNET_USE_NGRAPH=1
 
   ifeq ($(USE_NGRAPH_IE),1)
     NGRAPH_CFLAGS += -DMXNET_USE_NGRAPH_IE=1
+  endif
+
+  ifeq ($(USE_CUDA), 1)
+    NGRAPH_CFLAGS += -DMXNET_USE_CUDA=1
   endif
 
   ifeq ($(USE_NGRAPH_DISTRIBUTED), 1)
