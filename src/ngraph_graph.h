@@ -34,6 +34,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <thread>
 
 #include <ngraph/ngraph.hpp>
 #include "ngraph_graph_utils.h"
@@ -175,12 +176,14 @@ inline std::string get_backend_name(const mxnet::Context &context) {
   }
 }
 
+static std::mutex mx_backend;
 inline std::shared_ptr<ngraph::runtime::Backend> GetBackendFromContext(
   const mxnet::Context &context, bool create = true) {
   auto backend_name = get_backend_name(context);
   auto backend_key = backend_name + ":" + std::to_string(context.dev_id);
-
-  // don't care if this default constructs a weak_ptr, it won't lock
+  // atomic write access to the static backend weak_ptr
+  std::unique_lock<std::mutex> lock(mx_backend);
+  // default construct a backend weak_ptr, will not lock
   if (auto backend = backends[backend_key].lock()) {
     return backend;
   }
