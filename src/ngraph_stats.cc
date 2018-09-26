@@ -46,7 +46,7 @@ void NGraphStats::dump(std::ostream& out) {
       if (g) {
         out << std::string(total_column_, '#') << "\n";
         out << "# Graph " << g->name_ << std::endl;
-        auto backend = GetBackendFromContext(g->context_);
+        auto backend = g->get_backend();
 
         auto print_perf_for_pass = [&](
             const std::shared_ptr<ngraph::Function>& func,

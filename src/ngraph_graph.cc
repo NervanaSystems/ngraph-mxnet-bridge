@@ -23,7 +23,7 @@
 
 namespace ngraph_bridge {
 
-std::unordered_map<std::string, std::shared_ptr<ngraph::runtime::Backend>>
+std::unordered_map<std::string, std::weak_ptr<ngraph::runtime::Backend>>
     backends;
 
 /**
