@@ -176,10 +176,14 @@ inline std::string get_backend_name(const mxnet::Context &context) {
 }
 
 inline std::shared_ptr<ngraph::runtime::Backend> GetBackendFromContext(
-    const mxnet::Context &context) {
+  const mxnet::Context &context, bool create = true) {
   auto backend_name = get_backend_name(context);
   auto backend_key = backend_name + ":" + std::to_string(context.dev_id);
   if (backends.count(backend_key) == 0) {
+    if (!create)
+    {
+      return nullptr;
+    }
     auto backend = ngraph::runtime::Backend::create(backend_key);
     backends[backend_key] = backend;
   }
@@ -211,7 +215,7 @@ class Graph : public Node {
 
   ~Graph() override {
     // Clean up nGraph's compilation cache so we don't have a memory leak
-    auto backend = GetBackendFromContext(context_);
+    auto backend = GetBackendFromContext(context_, false);
     for (int i = 0; i < kGraphExeModeCount; ++i) {
       if (ngraph_forward[i]) {
         backend->remove_compiled_function(ngraph_forward[i]);
