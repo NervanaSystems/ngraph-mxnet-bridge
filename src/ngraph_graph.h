@@ -215,13 +215,14 @@ class Graph : public Node {
 
   ~Graph() override {
     // Clean up nGraph's compilation cache so we don't have a memory leak
-    auto backend = GetBackendFromContext(context_, false);
-    for (int i = 0; i < kGraphExeModeCount; ++i) {
-      if (ngraph_forward[i]) {
-        backend->remove_compiled_function(ngraph_forward[i]);
-      }
-      if (ngraph_backward[i]) {
-        backend->remove_compiled_function(ngraph_backward[i]);
+    if (auto backend = GetBackendFromContext(context_, false)) {
+      for (int i = 0; i < kGraphExeModeCount; ++i) {
+        if (ngraph_forward[i]) {
+          backend->remove_compiled_function(ngraph_forward[i]);
+        }
+        if (ngraph_backward[i]) {
+          backend->remove_compiled_function(ngraph_backward[i]);
+        }
       }
     }
   }
