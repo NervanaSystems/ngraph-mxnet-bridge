@@ -87,7 +87,7 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::NDArray> &inputs,
                      const std::vector<mxnet::OpReqType> &req,
                      const std::vector<mxnet::NDArray> &outputs) {
-  auto backend = GetBackendFromContext(graph->context_);
+  auto backend = graph->get_backend();
   auto placeholders =
       get_tensor_views(inputs, backend, nullptr, graph->is_reuse_mem);
   // for outputs we need to comply with req
@@ -127,7 +127,7 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                       const std::vector<mxnet::OpReqType> &req,
                       const std::vector<mxnet::NDArray> &outputs) {
   // only expect backward is called in training mode
-  auto backend = GetBackendFromContext(graph->context_);
+  auto backend = graph->get_backend();
 
   const int mode = static_cast<int>(GraphExeMode::kTrain);
   compile_if_needed(graph, mode);

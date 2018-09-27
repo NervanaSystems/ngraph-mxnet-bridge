@@ -34,6 +34,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <thread>
 
 #include <ngraph/ngraph.hpp>
 #include "ngraph_graph_utils.h"
@@ -153,8 +154,9 @@ class OpNode : public Node {
   }
 };
 
+extern std::mutex backends_mutex;
 extern std::unordered_map<std::string,
-                          std::shared_ptr<ngraph::runtime::Backend>>
+                          std::weak_ptr<ngraph::runtime::Backend>>
     backends;
 
 inline std::string get_backend_name(const mxnet::Context &context) {
@@ -176,18 +178,19 @@ inline std::string get_backend_name(const mxnet::Context &context) {
 }
 
 inline std::shared_ptr<ngraph::runtime::Backend> GetBackendFromContext(
-  const mxnet::Context &context, bool create = true) {
+  const mxnet::Context &context) {
   auto backend_name = get_backend_name(context);
   auto backend_key = backend_name + ":" + std::to_string(context.dev_id);
-  if (backends.count(backend_key) == 0) {
-    if (!create)
-    {
-      return nullptr;
-    }
-    auto backend = ngraph::runtime::Backend::create(backend_key);
+  // atomic write access to the static backend weak_ptr
+  std::unique_lock<std::mutex> lock(backends_mutex);
+  // retrieve or default construct a backend weak_ptr
+  auto backend = backends[backend_key].lock();
+  if (backend == nullptr)
+  {
+    backend = ngraph::runtime::Backend::create(backend_key);
     backends[backend_key] = backend;
   }
-  return backends[backend_key];
+  return backend;
 }
 
 class OutputElement;
@@ -215,7 +218,8 @@ class Graph : public Node {
 
   ~Graph() override {
     // Clean up nGraph's compilation cache so we don't have a memory leak
-    if (auto backend = GetBackendFromContext(context_, false)) {
+    if (backend)
+    {
       for (int i = 0; i < kGraphExeModeCount; ++i) {
         if (ngraph_forward[i]) {
           backend->remove_compiled_function(ngraph_forward[i]);
@@ -255,6 +259,15 @@ class Graph : public Node {
     }
     return nullptr;
   }
+
+  std::shared_ptr<ngraph::runtime::Backend> get_backend() {
+    if (!backend) {
+      backend = GetBackendFromContext(context_);
+    }
+    return backend;
+  }
+
+  std::shared_ptr<ngraph::runtime::Backend> backend;
 
   bool forward_train_computed{false};
   size_t num_outputs_ = 1;
