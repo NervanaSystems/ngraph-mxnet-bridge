@@ -23,6 +23,7 @@
 
 namespace ngraph_bridge {
 
+std::mutex backends_mutex;
 std::unordered_map<std::string, std::weak_ptr<ngraph::runtime::Backend>>
     backends;
 

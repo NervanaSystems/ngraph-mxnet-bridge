@@ -154,6 +154,7 @@ class OpNode : public Node {
   }
 };
 
+extern std::mutex backends_mutex;
 extern std::unordered_map<std::string,
                           std::weak_ptr<ngraph::runtime::Backend>>
     backends;
@@ -176,26 +177,20 @@ inline std::string get_backend_name(const mxnet::Context &context) {
   }
 }
 
-static std::mutex mx_backend;
 inline std::shared_ptr<ngraph::runtime::Backend> GetBackendFromContext(
-  const mxnet::Context &context, bool create = true) {
+  const mxnet::Context &context) {
   auto backend_name = get_backend_name(context);
   auto backend_key = backend_name + ":" + std::to_string(context.dev_id);
   // atomic write access to the static backend weak_ptr
-  std::unique_lock<std::mutex> lock(mx_backend);
-  // default construct a backend weak_ptr, will not lock
-  if (auto backend = backends[backend_key].lock()) {
-    return backend;
-  }
-  else
+  std::unique_lock<std::mutex> lock(backends_mutex);
+  // retrieve or default construct a backend weak_ptr
+  auto backend = backends[backend_key].lock();
+  if (backend == nullptr)
   {
-    if (!create) {
-      return nullptr;
-    }
     backend = ngraph::runtime::Backend::create(backend_key);
     backends[backend_key] = backend;
-    return backend;
   }
+  return backend;
 }
 
 class OutputElement;
