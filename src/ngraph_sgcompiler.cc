@@ -42,7 +42,7 @@ void CompileForward(std::shared_ptr<Graph> sub_graph,
                     GraphExeMode exe_mode) {
   const int mode = static_cast<int>(exe_mode);
 
-  auto backend = GetBackendFromContext(sub_graph->context_);
+  auto backend = sub_graph->get_backend();
 
   // Log the graph so Graph_* corresponds to Function_* in codgen
   if (ngraph_log_graph()) {
@@ -70,7 +70,7 @@ void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
                             const ngraph::FpropCache &fprop_cache) {
   const int mode = static_cast<int>(exe_mode);
 
-  auto backend = GetBackendFromContext(sub_graph->context_);
+  auto backend = sub_graph->get_backend();
 
   // clone the functions to ensure we don't have
   // any repeated nodes between graphs
@@ -201,7 +201,7 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeForwardFunction(
     outputs.push_back(op_map_.at(output));
   }
 
-  auto backend = GetBackendFromContext(sub_graph->context_);
+  auto backend = sub_graph->get_backend();
 
   // push additional aux outputs
   if (!aux_op_map_.empty()) {
@@ -307,7 +307,8 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeBackwardFunction(
 
 // Compile a Subgraph into ngraph forward and backward call frames
 void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
-  auto backend = GetBackendFromContext(sub_graph->context_);
+  auto backend = sub_graph->get_backend();
+
 
   // initalize a placeholder order vector for this subgraph
   for (auto i : sub_graph->inputs_) placeholder_order_.push_back(i);
