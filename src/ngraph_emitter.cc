@@ -1018,7 +1018,7 @@ void Emitter::CreateLayerOps() {
 
     ngraph::AxisVector out_hw{0, 0};
     if (node->inputs_.size() == 1) {
-      out_hw = get_default(node, "h_w", ngraph::AxisVector());
+      out_hw = get_default(node, "h_w", out_hw);
     }
     // use second input shape as crop reference
     else if (node->inputs_.size() == 2) {
@@ -1604,6 +1604,49 @@ void Emitter::CreateLayerOps() {
     }
     return conv;
   };
+  
+  ngraph_op_funcs_["UpSampling"] = [this](const NodePtr& node) -> NgraphNodePtr {
+
+    int scale= get_default(node, "scale", 1);
+    int num_filter = get_default(node, "num_filter", 0);
+    std::string sample_type = get_default(node, "sample_type", std::string("nearest"));
+    std::string multi_input_mode = get_default(node, "multi_input_mode", std::string("concat"));
+    
+    NgraphNodePtr result{nullptr};
+    if (node->inputs_.size() > 1) {
+      // multi inputs
+      
+    }
+    else {
+      // single input
+      NgraphNodePtr input = op_map_.at(node->inputs_[0]);
+      const auto& in_shape = input->get_shape();
+      auto out_shape = in_shape;
+      out_shape[2] *= scale; 
+      out_shape[3] *= scale; 
+      std::vector<float> nn_matrix_row(in_shape[3] * out_shape[3], 0);
+      for (size_t i = 0; i < in_shape[3]; ++i) {
+        for (size_t j = i * scale; j < (i+1)*scale; ++j) {
+            nn_matrix_row[i*out_shape[3]+j] = 1;
+        }
+      }
+      std::vector<float> nn_matrix_col(in_shape[2] * out_shape[2]);
+      for (size_t i = 0; i < in_shape[2]; ++i) {
+        for (size_t j = i * scale; j < (i+1)*scale; ++j) {
+            nn_matrix_col[i*out_shape[2]+j] = 1;
+        }
+      }
+      NgraphNodePtr nn_row = std::make_shared<ngraph::op::Constant>(input->get_element_type(), ngraph::Shape({in_shape[3], out_shape[3]}), nn_matrix_row);
+      NgraphNodePtr nn_col = std::make_shared<ngraph::op::Constant>(input->get_element_type(), ngraph::Shape({in_shape[2], out_shape[2]}), nn_matrix_col);
+      auto dot_1 = std::make_shared<ngraph::op::Dot>(input, nn_row);
+      NgraphNodePtr reshape_1 = std::make_shared<ngraph::op::Reshape>(dot_1, ngraph::AxisVector{0,1,3,2}, ngraph::Shape{in_shape[0], in_shape[1], out_shape[3], in_shape[2]});
+      auto dot_2 = std::make_shared<ngraph::op::Dot>(reshape_1, nn_col);
+      result = std::make_shared<ngraph::op::Reshape>(dot_2, ngraph::AxisVector{0,1,3,2}, out_shape);
+    }
+    
+    return result;
+  };
+  
   ngraph_op_funcs_["Pooling"] = [this](const NodePtr& node) -> NgraphNodePtr {
     NgraphNodePtr op;
     std::string type = get_default(node, "pool_type", std::string("max"));
