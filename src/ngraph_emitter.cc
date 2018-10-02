@@ -27,6 +27,7 @@
 
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
+#include "../../../src/operator/nn/upsampling-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
@@ -1465,7 +1466,8 @@ void Emitter::CreateLayerOps() {
       // if (ngraph_bn_op_available) {
       //   const NgraphNodePtr ng_normalized_data =
       //       std::make_shared<ngraph::op::BatchNorm>(
-      //           eps, ng_actual_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
+      //           eps, ng_actual_gamma, ng_in_beta, ng_in_data,
+      //           ng_in_moving_mean,
       //           ng_in_moving_var, true);
 
       //   multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
@@ -1587,9 +1589,11 @@ void Emitter::CreateLayerOps() {
       [this](const NodePtr& node) -> NgraphNodePtr {
     NgraphNodePtr data = op_map_[node->inputs_[0]];
     NgraphNodePtr filter = op_map_[node->inputs_[1]];
+    const auto& param = nnvm::get<mxnet::op::DeconvolutionParam>(
+        node->orig_node_->attrs.parsed);
 
-    auto conv = create_deconvolution(
-        data, filter, TShape_to_NShape(node->shape_), node->orig_node_);
+    auto conv = create_deconvolution(data, filter,
+                                     TShape_to_NShape(node->shape_), param);
 
     if (node->inputs_.size() > 2) {
       NgraphNodePtr bias = op_map_[node->inputs_[2]];
@@ -1604,49 +1608,84 @@ void Emitter::CreateLayerOps() {
     }
     return conv;
   };
-  
-  ngraph_op_funcs_["UpSampling"] = [this](const NodePtr& node) -> NgraphNodePtr {
 
-    int scale= get_default(node, "scale", 1);
-    int num_filter = get_default(node, "num_filter", 0);
-    std::string sample_type = get_default(node, "sample_type", std::string("nearest"));
-    std::string multi_input_mode = get_default(node, "multi_input_mode", std::string("concat"));
-    
+  ngraph_op_funcs_["UpSampling"] =
+      [this](const NodePtr& node) -> NgraphNodePtr {
+
+    int scale = get_default(node, "scale", 1);
+    std::string sample_type =
+        get_default(node, "sample_type", std::string("nearest"));
+    std::string multi_input_mode =
+        get_default(node, "multi_input_mode", std::string("concat"));
+
     NgraphNodePtr result{nullptr};
-    if (node->inputs_.size() > 1) {
-      // multi inputs
-      
-    }
-    else {
-      // single input
-      NgraphNodePtr input = op_map_.at(node->inputs_[0]);
-      const auto& in_shape = input->get_shape();
-      auto out_shape = in_shape;
-      out_shape[2] *= scale; 
-      out_shape[3] *= scale; 
-      std::vector<float> nn_matrix_row(in_shape[3] * out_shape[3], 0);
-      for (size_t i = 0; i < in_shape[3]; ++i) {
-        for (size_t j = i * scale; j < (i+1)*scale; ++j) {
-            nn_matrix_row[i*out_shape[3]+j] = 1;
+    NgraphNodePtr input = op_map_.at(node->inputs_[0]);
+    if (sample_type == "nearest") {
+      auto upsample_nearest = [](const NgraphNodePtr& input,
+                                 int scale) -> NgraphNodePtr {
+        const auto& in_shape = input->get_shape();
+        auto out_shape = in_shape;
+        out_shape[2] *= scale;
+        out_shape[3] *= scale;
+        auto create_nn_matrix = [](const size_t row_size, const size_t col_size,
+                                   const size_t scale) {
+          std::vector<float> nn_matrix(row_size * col_size, 0);
+          for (size_t i = 0; i < row_size; ++i) {
+            for (size_t j = i * scale; j < (i + 1) * scale; ++j) {
+              nn_matrix[i * col_size + j] = 1;
+            }
+          }
+          return nn_matrix;
+        };
+        auto nn_matrix_row = create_nn_matrix(in_shape[3], out_shape[3], scale);
+        auto nn_matrix_col = create_nn_matrix(in_shape[2], out_shape[2], scale);
+
+        NgraphNodePtr nn_row = std::make_shared<ngraph::op::Constant>(
+            input->get_element_type(),
+            ngraph::Shape({in_shape[3], out_shape[3]}), nn_matrix_row);
+        NgraphNodePtr nn_col = std::make_shared<ngraph::op::Constant>(
+            input->get_element_type(),
+            ngraph::Shape({in_shape[2], out_shape[2]}), nn_matrix_col);
+        auto dot_1 = std::make_shared<ngraph::op::Dot>(input, nn_row);
+        NgraphNodePtr reshape_1 = std::make_shared<ngraph::op::Reshape>(
+            dot_1, ngraph::AxisVector{0, 1, 3, 2},
+            ngraph::Shape{in_shape[0], in_shape[1], out_shape[3], in_shape[2]});
+        auto dot_2 = std::make_shared<ngraph::op::Dot>(reshape_1, nn_col);
+        return std::make_shared<ngraph::op::Reshape>(
+            dot_2, ngraph::AxisVector{0, 1, 3, 2}, out_shape);
+      };
+
+      std::vector<NgraphNodePtr> upsampled(node->inputs_.size());
+      for (size_t i = 0; i < node->inputs_.size(); ++i) {
+        upsampled[i] = upsample_nearest(op_map_.at(node->inputs_[i]), scale);
+      }
+      result = upsampled[0];
+      if (node->inputs_.size() > 1) {
+        if (multi_input_mode == "sum") {
+          for (size_t i = 1; i < node->inputs_.size(); ++i) {
+            result = result + upsampled[i];
+          }
+        }
+        if (multi_input_mode == "concat") {
+          result = std::make_shared<ngraph::op::Concat>(upsampled, 1);
         }
       }
-      std::vector<float> nn_matrix_col(in_shape[2] * out_shape[2]);
-      for (size_t i = 0; i < in_shape[2]; ++i) {
-        for (size_t j = i * scale; j < (i+1)*scale; ++j) {
-            nn_matrix_col[i*out_shape[2]+j] = 1;
-        }
-      }
-      NgraphNodePtr nn_row = std::make_shared<ngraph::op::Constant>(input->get_element_type(), ngraph::Shape({in_shape[3], out_shape[3]}), nn_matrix_row);
-      NgraphNodePtr nn_col = std::make_shared<ngraph::op::Constant>(input->get_element_type(), ngraph::Shape({in_shape[2], out_shape[2]}), nn_matrix_col);
-      auto dot_1 = std::make_shared<ngraph::op::Dot>(input, nn_row);
-      NgraphNodePtr reshape_1 = std::make_shared<ngraph::op::Reshape>(dot_1, ngraph::AxisVector{0,1,3,2}, ngraph::Shape{in_shape[0], in_shape[1], out_shape[3], in_shape[2]});
-      auto dot_2 = std::make_shared<ngraph::op::Dot>(reshape_1, nn_col);
-      result = std::make_shared<ngraph::op::Reshape>(dot_2, ngraph::AxisVector{0,1,3,2}, out_shape);
+    } else if (sample_type == "bilinear") {
+      const mxnet::op::UpSamplingParam& param =
+          nnvm::get<mxnet::op::UpSamplingParam>(node->orig_node_->attrs.parsed);
+      mxnet::op::DeconvolutionParam deconv_param =
+          mxnet::op::GetDeconvolutionParam(param);
+      NgraphNodePtr filter = op_map_.at(node->inputs_[1]);
+      result = create_deconvolution(
+          input, filter, TShape_to_NShape(node->shape_), deconv_param);
+    } else {
+      throw std::runtime_error("UpSampling unexpected sample type: " +
+                               sample_type);
     }
-    
+
     return result;
   };
-  
+
   ngraph_op_funcs_["Pooling"] = [this](const NodePtr& node) -> NgraphNodePtr {
     NgraphNodePtr op;
     std::string type = get_default(node, "pool_type", std::string("max"));
@@ -1965,7 +2004,9 @@ void Emitter::UnsupportedOps() {
     const auto out_shape = TShape_to_NShape(node->shape_);
     auto data = makeConstant(node->inputs_[0], "0");
     auto filter = makeConstant(node->inputs_[1], "0");
-    auto conv = create_deconvolution(data, filter, out_shape, node->orig_node_);
+    const auto& param = nnvm::get<mxnet::op::DeconvolutionParam>(
+        node->orig_node_->attrs.parsed);
+    auto conv = create_deconvolution(data, filter, out_shape, param);
 
     if (conv->get_shape() != TShape_to_NShape(node->shape_)) {
       if (ngraph_log_verbose_detail) {

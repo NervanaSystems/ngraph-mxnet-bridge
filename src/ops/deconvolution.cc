@@ -15,8 +15,8 @@
 *******************************************************************************/
 #include <vector>
 
-#include "deconvolution.h"
 #include "../../../../src/operator/nn/deconvolution-inl.h"
+#include "deconvolution.h"
 
 #include "../ngraph_emitter.h"
 #include "../ngraph_emitter_utils.h"
@@ -27,9 +27,7 @@ namespace ngraph_bridge {
 NgraphNodePtr create_deconvolution(const NgraphNodePtr& data,
                                    const NgraphNodePtr& filter,
                                    const ngraph::Shape& out_shape,
-                                   const nnvm::NodePtr& orig_node) {
-  const auto& param =
-      nnvm::get<mxnet::op::DeconvolutionParam>(orig_node->attrs.parsed);
+                                   const mxnet::op::DeconvolutionParam& param) {
   const auto data_shape = data->get_shape();
   const auto filter_shape = filter->get_shape();
 
