@@ -1622,13 +1622,13 @@ void Emitter::CreateLayerOps() {
     NgraphNodePtr input = op_map_.at(node->inputs_[0]);
     if (sample_type == "nearest") {
       auto upsample_nearest = [](const NgraphNodePtr& data,
-                                 int scale) -> NgraphNodePtr {
+                                 const int scale) -> NgraphNodePtr {
         const auto& in_shape = data->get_shape();
         auto out_shape = in_shape;
         out_shape[2] *= scale;
         out_shape[3] *= scale;
-        auto create_nn_matrix = [](const size_t row_size, const size_t col_size,
-                                   const size_t scale) {
+        auto create_nn_matrix = [scale](const size_t row_size,
+                                        const size_t col_size) {
           std::vector<float> nn_matrix(row_size * col_size, 0);
           for (size_t i = 0; i < row_size; ++i) {
             for (size_t j = i * scale; j < (i + 1) * scale; ++j) {
@@ -1637,8 +1637,8 @@ void Emitter::CreateLayerOps() {
           }
           return nn_matrix;
         };
-        auto nn_matrix_row = create_nn_matrix(in_shape[3], out_shape[3], scale);
-        auto nn_matrix_col = create_nn_matrix(in_shape[2], out_shape[2], scale);
+        auto nn_matrix_row = create_nn_matrix(in_shape[3], out_shape[3]);
+        auto nn_matrix_col = create_nn_matrix(in_shape[2], out_shape[2]);
 
         NgraphNodePtr nn_row = std::make_shared<ngraph::op::Constant>(
             data->get_element_type(),
