@@ -1621,9 +1621,9 @@ void Emitter::CreateLayerOps() {
     NgraphNodePtr result{nullptr};
     NgraphNodePtr input = op_map_.at(node->inputs_[0]);
     if (sample_type == "nearest") {
-      auto upsample_nearest = [](const NgraphNodePtr& input,
+      auto upsample_nearest = [](const NgraphNodePtr& data,
                                  int scale) -> NgraphNodePtr {
-        const auto& in_shape = input->get_shape();
+        const auto& in_shape = data->get_shape();
         auto out_shape = in_shape;
         out_shape[2] *= scale;
         out_shape[3] *= scale;
@@ -1641,12 +1641,12 @@ void Emitter::CreateLayerOps() {
         auto nn_matrix_col = create_nn_matrix(in_shape[2], out_shape[2], scale);
 
         NgraphNodePtr nn_row = std::make_shared<ngraph::op::Constant>(
-            input->get_element_type(),
+            data->get_element_type(),
             ngraph::Shape({in_shape[3], out_shape[3]}), nn_matrix_row);
         NgraphNodePtr nn_col = std::make_shared<ngraph::op::Constant>(
-            input->get_element_type(),
+            data->get_element_type(),
             ngraph::Shape({in_shape[2], out_shape[2]}), nn_matrix_col);
-        auto dot_1 = std::make_shared<ngraph::op::Dot>(input, nn_row);
+        auto dot_1 = std::make_shared<ngraph::op::Dot>(data, nn_row);
         NgraphNodePtr reshape_1 = std::make_shared<ngraph::op::Reshape>(
             dot_1, ngraph::AxisVector{0, 1, 3, 2},
             ngraph::Shape{in_shape[0], in_shape[1], out_shape[3], in_shape[2]});
@@ -1656,8 +1656,14 @@ void Emitter::CreateLayerOps() {
       };
 
       std::vector<NgraphNodePtr> upsampled(node->inputs_.size());
+      // When we have multiple inputs and their shape do not match, the first
+      // shape is the max dim we want to use to compute the scale to be used for
+      // each input so we can sum/concat them later.
+      int max_row_size = input->get_shape()[2] * scale;
       for (size_t i = 0; i < node->inputs_.size(); ++i) {
-        upsampled[i] = upsample_nearest(op_map_.at(node->inputs_[i]), scale);
+        int custom_scale = max_row_size / node->inputs_[i]->shape_[2];
+        upsampled[i] =
+            upsample_nearest(op_map_.at(node->inputs_[i]), custom_scale);
       }
       result = upsampled[0];
       if (node->inputs_.size() > 1) {
@@ -1665,9 +1671,11 @@ void Emitter::CreateLayerOps() {
           for (size_t i = 1; i < node->inputs_.size(); ++i) {
             result = result + upsampled[i];
           }
-        }
-        if (multi_input_mode == "concat") {
+        } else if (multi_input_mode == "concat") {
           result = std::make_shared<ngraph::op::Concat>(upsampled, 1);
+        } else {
+          throw std::runtime_error("UpSampling unexpected multi_input_mode: " +
+                                   multi_input_mode);
         }
       }
     } else if (sample_type == "bilinear") {
