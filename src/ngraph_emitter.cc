@@ -1640,6 +1640,9 @@ void Emitter::CreateLayerOps() {
         auto nn_matrix_row = create_nn_matrix(in_shape[3], out_shape[3]);
         auto nn_matrix_col = create_nn_matrix(in_shape[2], out_shape[2]);
 
+        // Example: if we have x with shape [2, 3], we want to scale by 2 will
+        // result in shape [4, 6]. It can be done with [2,3] * [3,6] -> [2,6] ->
+        // transpose to [6,2] -> [6,2] * [2, 4] -> [6, 4] -> transpose to [4,6].
         NgraphNodePtr nn_row = std::make_shared<ngraph::op::Constant>(
             data->get_element_type(),
             ngraph::Shape({in_shape[3], out_shape[3]}), nn_matrix_row);
@@ -1674,8 +1677,9 @@ void Emitter::CreateLayerOps() {
         } else if (multi_input_mode == "concat") {
           result = std::make_shared<ngraph::op::Concat>(upsampled, 1);
         } else {
-          throw std::runtime_error("UpSampling unexpected multi_input_mode: " +
-                                   multi_input_mode);
+          throw std::runtime_error(
+              "NGRAPH_BRIDGE: UpSampling unexpected multi_input_mode: " +
+              multi_input_mode);
         }
       }
     } else if (sample_type == "bilinear") {
@@ -1687,8 +1691,8 @@ void Emitter::CreateLayerOps() {
       result = create_deconvolution(
           input, filter, TShape_to_NShape(node->shape_), deconv_param);
     } else {
-      throw std::runtime_error("UpSampling unexpected sample type: " +
-                               sample_type);
+      throw std::runtime_error(
+          "NGRAPH_BRIDGE: UpSampling unexpected sample type: " + sample_type);
     }
 
     return result;
