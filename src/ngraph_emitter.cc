@@ -1620,39 +1620,38 @@ void Emitter::CreateLayerOps() {
 
     NgraphNodePtr result{nullptr};
     NgraphNodePtr input = op_map_.at(node->inputs_[0]);
+
+    const mxnet::op::UpSamplingParam& param =
+        nnvm::get<mxnet::op::UpSamplingParam>(node->orig_node_->attrs.parsed);
+
     if (sample_type == "nearest") {
-      auto upsample_nearest = [](const NgraphNodePtr& data,
-                                 const int scale) -> NgraphNodePtr {
-        const auto& in_shape = data->get_shape();
-        auto out_shape = in_shape;
+      std::cout << "ngraph nearest." << std::endl;
+      auto upsample_nearest = [&param](const NgraphNodePtr& data,
+                                       const int scale) -> NgraphNodePtr {
+        mxnet::op::DeconvolutionParam deconv_param =
+            mxnet::op::DeconvolutionParam();
+        deconv_param.workspace = param.workspace;
+        deconv_param.num_group = 1;
+        deconv_param.num_filter = 1;
+        deconv_param.no_bias = true;
+        int shape[] = {1, 1};
+        deconv_param.dilate = nnvm::TShape(shape, shape + 2);
+        shape[0] = shape[1] = scale;
+        deconv_param.kernel = nnvm::TShape(shape, shape + 2);
+        shape[0] = shape[1] = scale;
+        deconv_param.stride = nnvm::TShape(shape, shape + 2);
+        shape[0] = shape[1] = 0;
+        deconv_param.pad = nnvm::TShape(shape, shape + 2);
+
+        std::vector<float> nn_filter_data(scale * scale, 1.0f);
+        NgraphNodePtr nn_filter = std::make_shared<ngraph::op::Constant>(
+            data->get_element_type(), ngraph::Shape{1, 1, scale, scale},
+            nn_filter_data);
+
+        ngraph::Shape out_shape = data->get_shape();
         out_shape[2] *= scale;
         out_shape[3] *= scale;
-        auto create_nn_matrix = [scale](const size_t row_size,
-                                        const size_t col_size) {
-          std::vector<float> nn_matrix(row_size * col_size, 0);
-          for (size_t i = 0; i < row_size; ++i) {
-            for (size_t j = i * scale; j < (i + 1) * scale; ++j) {
-              nn_matrix[i * col_size + j] = 1;
-            }
-          }
-          return nn_matrix;
-        };
-        auto nn_matrix_row = create_nn_matrix(in_shape[3], out_shape[3]);
-        auto nn_matrix_col = create_nn_matrix(in_shape[2], out_shape[2]);
-
-        NgraphNodePtr nn_row = std::make_shared<ngraph::op::Constant>(
-            data->get_element_type(),
-            ngraph::Shape({in_shape[3], out_shape[3]}), nn_matrix_row);
-        NgraphNodePtr nn_col = std::make_shared<ngraph::op::Constant>(
-            data->get_element_type(),
-            ngraph::Shape({in_shape[2], out_shape[2]}), nn_matrix_col);
-        auto dot_1 = std::make_shared<ngraph::op::Dot>(data, nn_row);
-        NgraphNodePtr reshape_1 = std::make_shared<ngraph::op::Reshape>(
-            dot_1, ngraph::AxisVector{0, 1, 3, 2},
-            ngraph::Shape{in_shape[0], in_shape[1], out_shape[3], in_shape[2]});
-        auto dot_2 = std::make_shared<ngraph::op::Dot>(reshape_1, nn_col);
-        return std::make_shared<ngraph::op::Reshape>(
-            dot_2, ngraph::AxisVector{0, 1, 3, 2}, out_shape);
+        return create_deconvolution(data, nn_filter, out_shape, deconv_param);
       };
 
       std::vector<NgraphNodePtr> upsampled(node->inputs_.size());
@@ -1679,8 +1678,6 @@ void Emitter::CreateLayerOps() {
         }
       }
     } else if (sample_type == "bilinear") {
-      const mxnet::op::UpSamplingParam& param =
-          nnvm::get<mxnet::op::UpSamplingParam>(node->orig_node_->attrs.parsed);
       mxnet::op::DeconvolutionParam deconv_param =
           mxnet::op::GetDeconvolutionParam(param);
       NgraphNodePtr filter = op_map_.at(node->inputs_[1]);
