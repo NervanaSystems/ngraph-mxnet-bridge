@@ -17,13 +17,14 @@
 #ifndef MXNET_NGRAPH_OPS_DECONVOLUTION_H_
 #define MXNET_NGRAPH_OPS_DECONVOLUTION_H_
 
+#include "../../../../src/operator/nn/deconvolution-inl.h"
 #include "../ngraph_emitter.h"
 
 namespace ngraph_bridge {
 NgraphNodePtr create_deconvolution(const NgraphNodePtr& data,
-                                   const NgraphNodePtr& shape,
+                                   const NgraphNodePtr& filter,
                                    const ngraph::Shape& out_shape,
-                                   const nnvm::NodePtr& orig_node);
+                                   const mxnet::op::DeconvolutionParam& param);
 }  // namespace ngraph_bridge
 
 #endif  // MXNET_NGRAPH_OPS_DECONVOLUTION_H_
