@@ -28,9 +28,9 @@
 
 namespace ngraph_bridge {
 
-using TensorViewVector =
-    std::vector<std::shared_ptr<ngraph::runtime::TensorView>>;
-using ngraph::runtime::TensorView;
+using TensorVector =
+    std::vector<std::shared_ptr<ngraph::runtime::Tensor>>;
+using ngraph::runtime::Tensor;
 
 // Simple utility for getting the total number of bytes in a
 // buffer, either from an mxnet tensor or an ngraph tensor
@@ -43,7 +43,7 @@ inline size_t get_buffer_size(const T& shape, size_t nbytes) {
 // This function creates an ngraph Tensor from the shape and type
 // of an input mxnet TBlob. It optionally copies the data
 // from the TBlob to the ngraph tensor.
-inline std::shared_ptr<TensorView> NDArray_to_TensorView(
+inline std::shared_ptr<Tensor> NDArray_to_Tensor(
     const mxnet::NDArray& input,
     std::shared_ptr<ngraph::runtime::Backend> backend, bool copy) {
   auto shape = TShape_to_NShape(input.shape());
@@ -65,32 +65,32 @@ inline std::shared_ptr<TensorView> NDArray_to_TensorView(
 // This function takes a vector of TBlobs and creates a vector of
 // equialently shaped and typed ngraph tensors, optionally
 // copied the data from the TBlobs to ngraph
-inline TensorViewVector make_ngraph_placeholders(
+inline TensorVector make_ngraph_placeholders(
     const std::vector<mxnet::NDArray>& inputs,
     std::shared_ptr<ngraph::runtime::Backend> backend, bool copy_data) {
-  TensorViewVector out;
+  TensorVector out;
   std::transform(inputs.begin(), inputs.end(), std::back_inserter(out),
                  [copy_data, backend](const mxnet::NDArray& input) {
-                   return NDArray_to_TensorView(input, backend, copy_data);
+                   return NDArray_to_Tensor(input, backend, copy_data);
                  });
   return out;
 }
 
-// creates and returns vector of TensorViews for corresponding NDArrays
-// reuses NDArray memory for each TensorView if req is not kAddTo
-inline TensorViewVector get_tensor_views(
+// creates and returns vector of Tensors for corresponding NDArrays
+// reuses NDArray memory for each Tensor if req is not kAddTo
+inline TensorVector get_tensors(
     const std::vector<mxnet::NDArray>& ndarrays,
     std::shared_ptr<ngraph::runtime::Backend> backend,
     const std::vector<mxnet::OpReqType>* req = nullptr,
     const bool mem_reuse = true) {
-  TensorViewVector out;
+  TensorVector out;
   for (size_t i = 0; i < ndarrays.size(); ++i) {
     if (!mem_reuse || ((req != nullptr) && ((*req)[i] == mxnet::kAddTo)))
       out.push_back(
-          NDArray_to_TensorView(ndarrays[i], backend, req == nullptr));
+          NDArray_to_Tensor(ndarrays[i], backend, req == nullptr));
     else
       out.push_back(
-          const_cast<mxnet::NDArray&>(ndarrays[i]).create_tensor_view());
+          const_cast<mxnet::NDArray&>(ndarrays[i]).create_tensor());
   }
   return out;
 }
@@ -107,7 +107,7 @@ inline void result_plus_NDArray(void* mxnet_ptr, void* ngraph_ptr,
 // Utility function that copies all results from an
 // ngraph computation into the output NDArrays in mxnet
 inline void result_to_NDArray(
-    const std::vector<std::shared_ptr<ngraph::runtime::TensorView>>& results,
+    const std::vector<std::shared_ptr<ngraph::runtime::Tensor>>& results,
     const std::vector<mxnet::OpReqType>& req,
     const std::vector<mxnet::NDArray>& outputs, bool force_read = false) {
   for (size_t i = 0; i < outputs.size(); ++i) {

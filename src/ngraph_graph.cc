@@ -429,10 +429,8 @@ void CollapseSubgraph(Graph* graph, int subgraph_num) {
     for (auto& node : tmpGraph->outputs_) {
       GraphTraverse(node, visitor);
     }
-
-    for (auto input : tmpGraph->inputs_) {
-      tmpGraph->input_is_weight_.push_back(false);
-    }
+    tmpGraph->input_is_weight_ =
+        std::vector<bool>(tmpGraph->inputs_.size(), false);
     for (auto node : tmpGraph->nodes_) {
       if (node->operation_ == "Convolution" ||
           node->operation_ == "Deconvolution" ||
