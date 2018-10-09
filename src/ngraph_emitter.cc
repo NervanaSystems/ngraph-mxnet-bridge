@@ -27,7 +27,9 @@
 
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
+#include <ngraph/runtime/cpu/op/quantize.hpp>
 #include "../../../src/operator/nn/upsampling-inl.h"
+#include "../../../src/operator/quantization/quantize-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
@@ -1812,6 +1814,28 @@ void Emitter::CreateLayerOps() {
   };
   ngraph_op_funcs_["LinearRegressionOutput"] = [this](const NodePtr& node) {
     return op_map_[node->inputs_[0]];
+  };
+  ngraph_op_funcs_["_contrib_quantize"] = [this](const NodePtr& node) {
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    const auto& param =
+        nnvm::get<mxnet::op::QuantizeParam>(node->orig_node_->attrs.parsed);
+    auto arg0 = op_map_[node->inputs_[0]];
+    auto arg1 = std::make_shared<ngraph::op::Reshape>(
+        op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{});
+    auto arg2 = std::make_shared<ngraph::op::Reshape>(
+        op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
+    auto op = std::make_shared<ngraph::op::QuantizeCPU>(
+        arg0, arg1, arg2, getType(param.out_type));
+    NgraphNodePtr result =
+        std::make_shared<ngraph::op::GetOutputElement>(op, 0);
+    NgraphNodePtr min = std::make_shared<ngraph::op::GetOutputElement>(op, 1);
+    NgraphNodePtr max = std::make_shared<ngraph::op::GetOutputElement>(op, 2);
+    multi_output_map_[node] = {result, min, max};
+
+    return result;
   };
 }
 
