@@ -408,26 +408,31 @@ void CollapseSubgraph(Graph* graph, int subgraph_num) {
     tmpGraph->in_ngraph_ = true;
     tmpGraph->subgraph_ = subgraph_num;
 
-    GraphVisitor visitor;
+    if (tmpGraph->nodes_.size() == graph->nodes_.size()) {
+      tmpGraph->inputs_ = graph->inputs_;
+    } else {
+      GraphVisitor visitor;
 
-    std::unordered_set<NodePtr> nodes(tmpGraph->nodes_.begin(),
-                                      tmpGraph->nodes_.end());
-    std::unordered_set<NodePtr> visited;
+      std::unordered_set<NodePtr> nodes(tmpGraph->nodes_.begin(),
+                                        tmpGraph->nodes_.end());
+      std::unordered_set<NodePtr> visited;
 
-    visitor.operation = [tmpGraph, &nodes, &visited](NodePtr node) {
-      visited.insert(node);
-      if (!nodes.count(node)) {
-        tmpGraph->inputs_.push_back(node);
+      visitor.operation = [tmpGraph, &nodes, &visited](NodePtr node) {
+        visited.insert(node);
+        if (!nodes.count(node)) {
+          tmpGraph->inputs_.push_back(node);
+        }
+      };
+      visitor.stop_condition = [&nodes, &visited](NodePtr node, 
+                                                  NodePtr input) {
+        if (nodes.count(node) && !(visited.count(input))) {
+          return false;
+        }
+        return true;
+      };
+      for (auto& node : tmpGraph->outputs_) {
+        GraphTraverse(node, visitor);
       }
-    };
-    visitor.stop_condition = [&nodes, &visited](NodePtr node, NodePtr input) {
-      if (nodes.count(node) && !(visited.count(input))) {
-        return false;
-      }
-      return true;
-    };
-    for (auto& node : tmpGraph->outputs_) {
-      GraphTraverse(node, visitor);
     }
 
     for (auto input : tmpGraph->inputs_) {

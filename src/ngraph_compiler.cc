@@ -690,6 +690,11 @@ void Compiler::ParseNnvmGraph(const nnvm::Graph* graph_with_attrs) {
   for (auto e : graph_.outputs) {
     ngraph_.outputs_.push_back(ngraph_[e]);
   }
+  // set up the inputs to the parsed bridge graph
+  for (auto i : idx.input_nodes()) {
+    ngraph_.inputs_.push_back(ngraph_.get_node(idx[i].source, 0U));
+  }
+
   // set the shapes on multi-output nodes
   for (auto node : this->ngraph_.nodes_) {
     get_type(node);

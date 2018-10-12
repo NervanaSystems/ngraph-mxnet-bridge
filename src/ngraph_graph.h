@@ -253,7 +253,11 @@ class Graph : public Node {
 
   // get the node corresponding to an orig_node
   NodePtr operator[](const nnvm::NodeEntry &entry) {
-    MapEntry tmp{entry.node.get(), entry.index};
+    return get_node(entry.node.get(), entry.index);
+  }
+
+  NodePtr get_node(const nnvm::Node* node, size_t index) {
+    MapEntry tmp{node, index};
     if (entry_map_.count(tmp)) {
       return entry_map_[tmp];
     }
