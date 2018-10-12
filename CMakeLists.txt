@@ -59,6 +59,7 @@ include_directories(../mshadow/)
 include_directories(../dmlc-core/include/)
 include_directories(../tvm/nnvm/include/)
 include_directories(../tvm/dlpack/include/)
+include_directories(../dlpack/include/)
 include_directories(build/include/)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
