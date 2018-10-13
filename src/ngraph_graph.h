@@ -283,10 +283,6 @@ class Graph : public Node {
   std::shared_ptr<ngraph::FpropCache> fprop_cache;
 
   const mxnet::Context context_;
-  std::vector<std::shared_ptr<ngraph::runtime::Tensor>>
-      cached_values[kGraphExeModeCount];
-  std::vector<std::shared_ptr<ngraph::runtime::Tensor>>
-      cached_aux_values[kGraphExeModeCount];
 
   std::vector<int> cached_aux_positions[kGraphExeModeCount];
 

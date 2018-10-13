@@ -48,6 +48,25 @@ inline const ngraph::element::Type& getType(int type) {
   return *ngraphType->second;
 }
 
+inline int getType(const ngraph::element::Type& et) {
+  if (et == ngraph::element::f32) {
+    return mshadow::kFloat32;
+  } else if (et == ngraph::element::f64) {
+    return mshadow::kFloat64;
+  } else if (et == ngraph::element::u8) {
+    return mshadow::kUint8;
+  } else if (et == ngraph::element::i8) {
+    return mshadow::kInt8;
+  } else if (et == ngraph::element::i32) {
+    return mshadow::kInt32;
+  } else if (et == ngraph::element::i64) {
+    return mshadow::kInt64;
+  } else {
+    throw std::runtime_error(
+        "NGRAPH_BRIDGE: ngraph element type not supported by NDAarray");
+  }
+}
+
 // Template for converting shape objects via a range based for loop
 template <typename Ti, typename To>
 inline To convert_shapes(const Ti& inshape) {
