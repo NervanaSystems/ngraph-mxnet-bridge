@@ -79,15 +79,9 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   auto placeholders =
       get_tensors(inputs, backend, nullptr, graph->is_reuse_mem);
   // for outputs we need to comply with req
-  TensorVector results;
-  if (ctx.is_train) {
-    results = get_tensors(outputs, backend, &req, graph->is_reuse_mem);
-  } else {
-    std::vector<mxnet::NDArray> inference_outputs;
-    for (size_t i = 0; i < graph->num_outputs_; ++i) {
-      inference_outputs.push_back(outputs[i]);
-    }
-    results = get_tensors(inference_outputs, backend, &req, graph->is_reuse_mem);
+  auto results = get_tensors(outputs, backend, &req, graph->is_reuse_mem);
+  if (!ctx.is_train) {
+    results = TensorVector(results.begin(), results.begin() + graph->num_outputs_);
   }
 
   int mode = static_cast<int>(GraphExeMode::kInfer);
