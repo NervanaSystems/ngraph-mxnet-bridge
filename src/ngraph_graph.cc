@@ -521,4 +521,31 @@ void Node::printOpDetails(std::ostream& os) {
   }
 }
 
+void Graph::clear_graph() {
+  inputs_.clear();
+  input_is_weight_.clear();
+
+  outputs_.clear();
+  output_elements_.clear();
+  is_loss.clear();
+
+  nodes_.clear();
+  entry_map_.clear();
+
+  fprop_cache = nullptr;
+
+  if (backend)
+  {
+    for (int i = 0; i < kGraphExeModeCount; ++i) {
+      cached_values[i].clear();
+      cached_aux_values[i].clear();
+      if (ngraph_forward[i]) {
+        backend->remove_compiled_function(ngraph_forward[i]);
+      }
+      if (ngraph_backward[i]) {
+        backend->remove_compiled_function(ngraph_backward[i]);
+      }
+    }
+  }
+}
 }  // namespace ngraph_bridge
