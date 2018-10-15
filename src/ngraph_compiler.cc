@@ -194,6 +194,8 @@ Compiler::Compiler(const nnvm::Graph& graph, const NDArrayMap& feed_dict,
 }
 
 void Compiler::ReshapeGraph(const nnvm::ShapeVector& new_shapes) {
+  ngraph_.clear_graph();
+  sub_ngraph_->clear_graph();
   sub_ngraph_ = nullptr;
   for (size_t i = 0; i < new_shapes.size(); ++i) {
     shapes_[i] = new_shapes[i];
