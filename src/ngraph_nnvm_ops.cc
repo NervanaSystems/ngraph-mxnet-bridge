@@ -81,13 +81,13 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   // for outputs we need to comply with req
   TensorVector results;
   if (ctx.is_train) {
-    results = get_tensors(outputs, backend, &req);
+    results = get_tensors(outputs, backend, &req, graph->is_reuse_mem);
   } else {
     std::vector<mxnet::NDArray> inference_outputs;
     for (size_t i = 0; i < graph->num_outputs_; ++i) {
       inference_outputs.push_back(outputs[i]);
     }
-    results = get_tensors(inference_outputs, backend, &req);
+    results = get_tensors(inference_outputs, backend, &req, graph->is_reuse_mem);
   }
 
   int mode = static_cast<int>(GraphExeMode::kInfer);
@@ -120,7 +120,6 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     update_aux_vals(graph, aux_results, inputs, mode);
   }
 }
-
 // function for computing backward on ngraph
 void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                       const std::vector<mxnet::NDArray> &inputs,
@@ -134,7 +133,7 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
 
   TensorVector placeholders;    
   TensorVector aux_results;
-  auto input_tvs = get_tensors(inputs, backend, &req);
+  auto input_tvs = get_tensors(inputs, backend, &req, graph->is_reuse_mem);
 
   size_t adjoints = 0;
   if (!graph->zero_grad) {
