@@ -47,16 +47,17 @@ void update_aux_vals(const std::shared_ptr<Graph> &graph,
                      const std::vector<mxnet::NDArray> &inputs, const int mode,
                      const int offset = 0) {
   const size_t cached_aux_count = graph->cached_aux_positions[mode].size();
-  if (cached_aux_count > 0) {
-    std::vector<mxnet::OpReqType> aux_req;
-    std::vector<mxnet::NDArray> aux_outs;
+  // if (results.size() != cached_aux_count) {
+  //   throw std::runtime_error;
+  // }
+  for (size_t i = 0; i < cached_aux_count; ++i) {
+    auto buffer_size = results[i]->get_size_in_bytes();
 
-    for (size_t i = 0; i < cached_aux_count; ++i) {
-      aux_outs.push_back(inputs[graph->cached_aux_positions[mode][i] + offset]);
-      aux_req.push_back(mxnet::kWriteTo);
-    }
-
-    result_to_NDArray(results, aux_req, aux_outs, true);
+    void *mxnet_ndarray =
+        inputs[graph->cached_aux_positions[mode][i] + offset]
+            .storage_handle()
+            .dptr;
+    results[i]->read(mxnet_ndarray, 0, buffer_size);
   }
 }
 
@@ -69,19 +70,33 @@ void compile_if_needed(std::shared_ptr<Graph> graph, int mode) {
     }
   }
 }
+std::vector<float> read_vector(std::shared_ptr<ngraph::runtime::Tensor> tv)
+{
+    if (ngraph::element::from<float>() != tv->get_tensor_layout()->get_element_type())
+    {
+        throw std::invalid_argument("read_vector type must match Tensor type");
+    }
+    size_t element_count = ngraph::shape_size(tv->get_shape());
+    size_t size = element_count * sizeof(float);
+    std::vector<float> rc(element_count);
+    tv->read(rc.data(), 0, size);
+    return rc;
+}
 
 // function for computing forward on ngraph
 void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::NDArray> &inputs,
                      const std::vector<mxnet::OpReqType> &req,
                      const std::vector<mxnet::NDArray> &outputs) {
+  std::cout << "forward" << std::endl;
   auto backend = graph->get_backend();
   auto placeholders =
       get_tensors(inputs, backend, nullptr, graph->is_reuse_mem);
   // for outputs we need to comply with req
   auto results = get_tensors(outputs, backend, &req, graph->is_reuse_mem);
   if (!ctx.is_train) {
-    results = TensorVector(results.begin(), results.begin() + graph->num_outputs_);
+    results =
+        TensorVector(results.begin(), results.begin() + graph->num_outputs_);
   }
 
   int mode = static_cast<int>(GraphExeMode::kInfer);
@@ -97,7 +112,16 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     }
   }
 
+  for (auto tv : placeholders) {
+    std::cout << read_vector(tv) << std::endl;
+  }
+  std::cout << "---------------------" << std::endl;
+
   backend->call(graph->ngraph_forward[mode], results, placeholders);
+
+  for (auto tv : results) {
+    std::cout << read_vector(tv) << std::endl;
+  }
 
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
 
@@ -119,6 +143,7 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                       const std::vector<mxnet::NDArray> &inputs,
                       const std::vector<mxnet::OpReqType> &req,
                       const std::vector<mxnet::NDArray> &outputs) {
+  std::cout << "backward" << std::endl;
   // only expect backward is called in training mode
   auto backend = graph->get_backend();
 
@@ -129,6 +154,9 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   TensorVector aux_results;
   auto input_tvs = get_tensors(inputs, backend, &req, graph->is_reuse_mem);
 
+  // std::cout << input_tvs.size() << std::endl;
+  // std::cout << graph->fprop_cache->bprop->get_parameters().size() << std::endl;
+
   size_t adjoints = 0;
   if (!graph->zero_grad) {
     adjoints = graph->num_adjoints_;
@@ -138,7 +166,7 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   placeholders.insert(placeholders.end(), input_tvs.begin(), end_of_adjoints);
   aux_results.insert(aux_results.end(), end_of_adjoints, end_of_aux);
   placeholders.insert(placeholders.end(), end_of_aux, input_tvs.end());
-
+  std::cout << "---------------------" << std::endl;
   if (graph->zero_grad) {
     for (size_t i = 0; i < graph->num_adjoints_; ++i) {
       // TODO(mbrookahrt): don't bprop graph if it's zerograd?
@@ -148,11 +176,16 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                                  TShape_to_NShape(graph->outputs_[i]->shape_)));
     }
   }
+  std::cout << "---------------------" << std::endl;
 
   auto results = get_tensors(outputs, backend, &req, graph->is_reuse_mem);
 
   CHECK(graph->ngraph_backward[mode]);
   backend->call(graph->ngraph_backward[mode], results, placeholders);
+  for (auto tv : results) {
+    std::cout << read_vector(tv) << std::endl;
+  }
+  std::cout << "---------------------" << std::endl;
   // reset the forward training compute flag to ensure backward always have
   // updated data from forward
   graph->forward_train_computed = false;
