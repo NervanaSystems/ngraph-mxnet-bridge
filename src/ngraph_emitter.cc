@@ -27,7 +27,6 @@
 
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
-#include <ngraph/runtime/cpu/op/quantize.hpp>
 #include "../../../src/operator/nn/upsampling-inl.h"
 #include "../../../src/operator/quantization/quantize-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
@@ -1827,13 +1826,28 @@ void Emitter::CreateLayerOps() {
         op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{});
     auto arg2 = std::make_shared<ngraph::op::Reshape>(
         op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
-    auto op = std::make_shared<ngraph::op::QuantizeCPU>(
-        arg0, arg1, arg2, getType(param.out_type));
+
+    ngraph::AxisSet quantization_axes;
+    ngraph::Shape scale_offset_shape;
+    auto round_mode = ngraph::op::Quantize::RoundMode::HALF_AWAY_FROM_ZERO;
+    // TODO: calculate correct scale
+    auto scale = ngraph::op::Constant::create(ngraph::element::f32,
+                                              scale_offset_shape, {2});
+    auto offset = ngraph::op::Constant::create(ngraph::element::u8,
+                                               scale_offset_shape, {0});
+
+    auto op = std::make_shared<ngraph::op::Quantize>(
+        arg0, scale, offset, getType(param.out_type), quantization_axes,
+        round_mode);
+
     NgraphNodePtr result =
         std::make_shared<ngraph::op::GetOutputElement>(op, 0);
-    NgraphNodePtr min = std::make_shared<ngraph::op::GetOutputElement>(op, 1);
-    NgraphNodePtr max = std::make_shared<ngraph::op::GetOutputElement>(op, 2);
-    multi_output_map_[node] = {result, min, max};
+    // TODO: calculate min/max for outputs
+    auto out1 = ngraph::op::Constant::create(ngraph::element::f32,
+                                             scale_offset_shape, {2});
+    auto out2 = ngraph::op::Constant::create(ngraph::element::f32,
+                                             scale_offset_shape, {2});
+    multi_output_map_[node] = {result, out1, out2};
 
     return result;
   };
