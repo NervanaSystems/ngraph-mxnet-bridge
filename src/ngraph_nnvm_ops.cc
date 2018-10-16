@@ -176,6 +176,9 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                                  TShape_to_NShape(graph->outputs_[i]->shape_)));
     }
   }
+  for (auto tv : placeholders) {
+    std::cout << read_vector(tv) << std::endl;
+  }
   std::cout << "---------------------" << std::endl;
 
   auto results = get_tensors(outputs, backend, &req, graph->is_reuse_mem);
@@ -193,6 +196,10 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
 
   // overwrite aux data if they exist
   // aux result outputs mapped to inputs
+  for (auto tv : aux_results) {
+    std::cout << read_vector(tv) << std::endl;
+  }
+  std::cout << "---------------------" << std::endl;
   update_aux_vals(graph, aux_results, inputs, mode, graph->num_adjoints_);
 }
 
