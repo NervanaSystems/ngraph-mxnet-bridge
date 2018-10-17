@@ -434,6 +434,7 @@ void SGCompiler::CompileNodes(NodePtr node,
         this->op_map_.insert(
             {node, this->ngraph_op_funcs_[node->operation_](node)});
 
+        if (node->multi_output_index_ == -1) return;
         // Verify that the shapes computed by NNVM and nGraph are identical...
         const nnvm::TShape &nnvm_shape = node->shape_;
         const std::shared_ptr<ngraph::Node> ngraph_node = this->op_map_[node];

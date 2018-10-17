@@ -318,6 +318,7 @@ class Graph : public Node {
   // handle some zero_grad errors with batch_take
   std::vector<bool> is_loss;
   bool is_reuse_mem = true;
+  bool need_gradient = false;
 };
 
 // Element to represent outputs of Graph objects embedded in other Graph objects

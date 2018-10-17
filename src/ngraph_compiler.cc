@@ -302,6 +302,7 @@ std::shared_ptr<Graph> Compiler::SGCompile(NodePtr& n) {
 
   // compile subgraph in other execution modes,
   for (int i = 1; i < kGraphExeModeCount; ++i) {
+    auto mode = static_cast<GraphExeMode>(i);
     // set graph execution mode
     if (sg->need_grad) {
       compiler_.setExeMode(static_cast<GraphExeMode>(i));
@@ -439,13 +440,19 @@ void Compiler::CleanUpUneededReferences() {
 
 // assumes there is only one ngraph
 std::shared_ptr<Graph> Compiler::GetNgraph() {
+  static auto& fgradient = nnvm::Op::GetAttr<nnvm::FGradient>("FGradient");
+  bool need_gradient = false;
   if (sub_ngraph_) return sub_ngraph_;
   // assumes all operations in the graph are fusable
   for (auto& node : ngraph_.nodes_) {
     if (node->type_ == NodeType::kOp) {
       node->subgraph_ = 1;
+      if (fgradient.count(node->orig_node_->op())) {
+        need_gradient = true;
+      }
     } else if (node->type_ == NodeType::kGraph) {
       node->subgraph_ = 1;
+      std::dynamic_pointer_cast<Graph>(node)->need_gradient = need_gradient;
       for (auto output :
            std::dynamic_pointer_cast<Graph>(node)->output_elements_) {
         output->subgraph_ = 1;
