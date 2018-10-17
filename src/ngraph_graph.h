@@ -219,6 +219,17 @@ class Graph : public Node {
   ~Graph() override {
     // Clean up nGraph's compilation cache so we don't have a memory leak
     clear_graph();
+    if (backend)
+    {
+      for (int i = 0; i < kGraphExeModeCount; ++i) {
+        if (ngraph_forward[i]) {
+          backend->remove_compiled_function(ngraph_forward[i]);
+        }
+        if (ngraph_backward[i]) {
+          backend->remove_compiled_function(ngraph_backward[i]);
+        }
+      }
+    }
   }
 
   std::string createNodeLabel() override {
