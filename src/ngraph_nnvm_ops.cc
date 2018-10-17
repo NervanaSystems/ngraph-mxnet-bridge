@@ -70,34 +70,29 @@ void compile_if_needed(std::shared_ptr<Graph> graph, int mode) {
     }
   }
 }
-std::vector<float> read_vector(std::shared_ptr<ngraph::runtime::Tensor> tv)
-{
-    if (ngraph::element::from<float>() != tv->get_tensor_layout()->get_element_type())
-    {
-        throw std::invalid_argument("read_vector type must match Tensor type");
-    }
-    size_t element_count = ngraph::shape_size(tv->get_shape());
-    size_t size = element_count * sizeof(float);
-    std::vector<float> rc(element_count);
-    tv->read(rc.data(), 0, size);
-    return rc;
+
+
+std::vector<bool> is_bool(const ngraph::ResultVector& nodes) {
+  std::vector<bool> bools;
+  for (const auto& node : nodes) {
+    bools.push_back(node->get_element_type() == ngraph::element::boolean);
+  }
+  return bools;
 }
 
+std::vector<bool> is_bool(const std::vector<std::shared_ptr<ngraph::op::Parameter>>& nodes) {
+  std::vector<bool> bools;
+  for (const auto& node : nodes) {
+    bools.push_back(node->get_element_type() == ngraph::element::boolean);
+  }
+  return bools;
+}
 // function for computing forward on ngraph
 void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::NDArray> &inputs,
                      const std::vector<mxnet::OpReqType> &req,
                      const std::vector<mxnet::NDArray> &outputs) {
-  std::cout << "forward" << std::endl;
   auto backend = graph->get_backend();
-  auto placeholders =
-      get_tensors(inputs, backend, nullptr, graph->is_reuse_mem);
-  // for outputs we need to comply with req
-  auto results = get_tensors(outputs, backend, &req, graph->is_reuse_mem);
-  if (!ctx.is_train) {
-    results =
-        TensorVector(results.begin(), results.begin() + graph->num_outputs_);
-  }
 
   int mode = static_cast<int>(GraphExeMode::kInfer);
   if (ctx.is_train) {
@@ -106,22 +101,25 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   }
   compile_if_needed(graph, mode);
 
+  auto placeholders = get_tensors(
+      inputs, backend, is_bool(graph->ngraph_forward[mode]->get_parameters()),
+      nullptr, graph->is_reuse_mem);
+  // for outputs we need to comply with req
+  auto results = get_tensors(
+      outputs, backend, is_bool(graph->ngraph_forward[mode]->get_results()),
+      &req, graph->is_reuse_mem);
+  if (!ctx.is_train) {
+    results =
+        TensorVector(results.begin(), results.begin() + graph->num_outputs_);
+  }
+
   if (mode == static_cast<int>(GraphExeMode::kTrain)) {
     for (auto &tv : placeholders) {
       tv->set_stale(true);
     }
   }
 
-  for (auto tv : placeholders) {
-    std::cout << read_vector(tv) << std::endl;
-  }
-  std::cout << "---------------------" << std::endl;
-
   backend->call(graph->ngraph_forward[mode], results, placeholders);
-
-  for (auto tv : results) {
-    std::cout << read_vector(tv) << std::endl;
-  }
 
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
 
@@ -143,30 +141,35 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                       const std::vector<mxnet::NDArray> &inputs,
                       const std::vector<mxnet::OpReqType> &req,
                       const std::vector<mxnet::NDArray> &outputs) {
-  std::cout << "backward" << std::endl;
   // only expect backward is called in training mode
   auto backend = graph->get_backend();
 
   const int mode = static_cast<int>(GraphExeMode::kTrain);
   compile_if_needed(graph, mode);
 
-  TensorVector placeholders;    
-  TensorVector aux_results;
-  auto input_tvs = get_tensors(inputs, backend, &req, graph->is_reuse_mem);
-
-  // std::cout << input_tvs.size() << std::endl;
-  // std::cout << graph->fprop_cache->bprop->get_parameters().size() << std::endl;
+  auto input_tvs = get_tensors(
+      inputs, backend, is_bool(graph->ngraph_backward[mode]->get_parameters()),
+      nullptr, graph->is_reuse_mem);
 
   size_t adjoints = 0;
   if (!graph->zero_grad) {
     adjoints = graph->num_adjoints_;
   }
-  auto end_of_adjoints = input_tvs.begin() + adjoints + graph->inputs_.size();
-  auto end_of_aux = end_of_adjoints + graph->cached_aux_positions[mode].size();
-  placeholders.insert(placeholders.end(), input_tvs.begin(), end_of_adjoints);
-  aux_results.insert(aux_results.end(), end_of_adjoints, end_of_aux);
-  placeholders.insert(placeholders.end(), end_of_aux, input_tvs.end());
-  std::cout << "---------------------" << std::endl;
+
+  TensorVector placeholders;    
+  TensorVector aux_results;
+  size_t i = 0;
+  size_t inputs_size = adjoints + graph->inputs_.size();
+  size_t aux_size = graph->cached_aux_positions[mode].size();
+  for (const auto& tv : input_tvs) {
+    if ((i >= inputs_size) && (i < (aux_size + inputs_size))) {
+      aux_results.push_back(tv);
+    } else {
+      placeholders.push_back(tv);
+    }
+    ++i;
+  }
+
   if (graph->zero_grad) {
     for (size_t i = 0; i < graph->num_adjoints_; ++i) {
       // TODO(mbrookahrt): don't bprop graph if it's zerograd?
@@ -176,19 +179,14 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                                  TShape_to_NShape(graph->outputs_[i]->shape_)));
     }
   }
-  for (auto tv : placeholders) {
-    std::cout << read_vector(tv) << std::endl;
-  }
-  std::cout << "---------------------" << std::endl;
 
-  auto results = get_tensors(outputs, backend, &req, graph->is_reuse_mem);
+  auto results = get_tensors(
+      outputs, backend, is_bool(graph->ngraph_backward[mode]->get_results()),
+      &req, graph->is_reuse_mem);
 
   CHECK(graph->ngraph_backward[mode]);
   backend->call(graph->ngraph_backward[mode], results, placeholders);
-  for (auto tv : results) {
-    std::cout << read_vector(tv) << std::endl;
-  }
-  std::cout << "---------------------" << std::endl;
+
   // reset the forward training compute flag to ensure backward always have
   // updated data from forward
   graph->forward_train_computed = false;
@@ -196,10 +194,6 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
 
   // overwrite aux data if they exist
   // aux result outputs mapped to inputs
-  for (auto tv : aux_results) {
-    std::cout << read_vector(tv) << std::endl;
-  }
-  std::cout << "---------------------" << std::endl;
   update_aux_vals(graph, aux_results, inputs, mode, graph->num_adjoints_);
 }
 

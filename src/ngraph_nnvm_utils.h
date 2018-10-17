@@ -81,16 +81,18 @@ inline TensorVector make_ngraph_placeholders(
 inline TensorVector get_tensors(
     const std::vector<mxnet::NDArray>& ndarrays,
     std::shared_ptr<ngraph::runtime::Backend> backend,
+    std::vector<bool> is_boolean,
     const std::vector<mxnet::OpReqType>* req = nullptr,
     const bool mem_reuse = true) {
   TensorVector out;
   for (size_t i = 0; i < ndarrays.size(); ++i) {
-    if (!mem_reuse || ((req != nullptr) && ((*req)[i] == mxnet::kAddTo)))
+    if (!mem_reuse ||
+        ((req != nullptr) && ((*req)[i] == mxnet::kAddTo))) {
+      out.push_back(NDArray_to_Tensor(ndarrays[i], backend, (req == nullptr)));
+    } else {
       out.push_back(
-          NDArray_to_Tensor(ndarrays[i], backend, req == nullptr));
-    else
-      out.push_back(
-          const_cast<mxnet::NDArray&>(ndarrays[i]).create_tensor());
+          const_cast<mxnet::NDArray&>(ndarrays[i]).create_tensor(is_boolean[i]));
+    }
   }
   return out;
 }
