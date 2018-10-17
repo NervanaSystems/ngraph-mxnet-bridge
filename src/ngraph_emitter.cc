@@ -25,10 +25,11 @@
 #include <utility>
 #include <vector>
 
+#include <ngraph/builder/quantization.hpp>
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
-#include <ngraph/builder/quantization.hpp>
 #include "../../../src/operator/nn/upsampling-inl.h"
+#include "../../../src/operator/quantization/dequantize-inl.h"
 #include "../../../src/operator/quantization/quantize-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
@@ -1833,18 +1834,27 @@ void Emitter::CreateLayerOps() {
     const ngraph::AxisSet quantization_axes;
     auto round_mode = ngraph::op::Quantize::RoundMode::HALF_AWAY_FROM_ZERO;
 
-    /* auto op = std::make_shared<ngraph::op::Quantize>( */
-    /*     arg0, scale, offset, getType(param.out_type), quantization_axes, */
-    /*     round_mode); */
-    /* auto op = std::make_shared<ngraph::builder::ScaledQuantize>( */
-    /*     arg0, arg1, arg2, getType(param.out_type), quantization_axes, */
-    /*     round_mode); */
-    auto op = ngraph::builder::ScaledQuantize(
-        arg0, arg1, arg2, getType(param.out_type), quantization_axes,
-        round_mode);
+    auto op = ngraph::builder::ScaledQuantize(arg0, arg1, arg2,
+                                              getType(param.out_type),
+                                              quantization_axes, round_mode);
 
     multi_output_map_[node] = {op, arg1p, arg2p};
 
+    return op;
+  };
+  ngraph_op_funcs_["_contrib_dequantize"] = [this](const NodePtr& node) {
+    const auto& param =
+        nnvm::get<mxnet::op::DequantizeParam>(node->orig_node_->attrs.parsed);
+    auto arg0 = op_map_[node->inputs_[0]];
+    auto arg1 = std::make_shared<ngraph::op::Reshape>(
+        op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{});
+    auto arg2 = std::make_shared<ngraph::op::Reshape>(
+        op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
+
+    const ngraph::AxisSet quantization_axes;
+
+    auto op = ngraph::builder::ScaledDequantize(
+        arg0, arg1, arg2, getType(param.out_type), quantization_axes);
     return op;
   };
 }
