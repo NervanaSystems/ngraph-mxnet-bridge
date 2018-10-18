@@ -97,6 +97,9 @@ inline ngraph::Shape convert_shapes(const nnvm::TShape& inshape) {
 }
 
 inline nnvm::TShape NShape_to_TShape(const ngraph::Shape& inshape) {
+  if (inshape.size() == 0) {
+    return nnvm::TShape{1};
+  }
   return convert_shapes<ngraph::Shape, nnvm::TShape>(inshape);
 }
 

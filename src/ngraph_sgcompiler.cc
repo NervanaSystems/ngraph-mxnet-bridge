@@ -106,10 +106,8 @@ void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
       auto bf_param = fprop_cache.node_param_map->get(result->get_argument(0));
       if (bfmap.get_node_map().count(bf_param) != 0) {
         auto cloned_bf_param = bfmap.get(bf_param);
-        auto layout =
-            cloned_result->get_output_tensor().get_tensor_layout();
-        cloned_bf_param->get_output_tensor().set_tensor_layout(
-            layout);
+        auto layout = cloned_result->get_output_tensor().get_tensor_layout();
+        cloned_bf_param->get_output_tensor().set_tensor_layout(layout);
       }
     }
   }
@@ -307,7 +305,6 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeBackwardFunction(
 // Compile a Subgraph into ngraph forward and backward call frames
 void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
   auto backend = sub_graph->get_backend();
-
 
   // initalize a placeholder order vector for this subgraph
   for (auto i : sub_graph->inputs_) placeholder_order_.push_back(i);
