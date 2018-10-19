@@ -48,8 +48,15 @@ using nnvmNodePtr = std::shared_ptr<nnvm::Node>;
 // Possible Types of nodes in Current Version
 enum class NodeType { kVariable, kAux, kOp, kGraph, kOutput };
 enum class GraphExeMode { kInfer = 0, kTrain };
+enum class NodeReferences {
+  kForwardInput = 0,
+  kForwardOutput,
+  kBackwardInput,
+  kBackwardOutput
+};
+
 constexpr int kGraphExeModeCount = static_cast<int>(GraphExeMode::kTrain) -
-                                   static_cast<int>(GraphExeMode::kInfer) + 1;
+                                     static_cast<int>(GraphExeMode::kInfer) + 1;
 
 // Base class for Nodes in Intermediary Analysis Graph
 class Node {
@@ -212,6 +219,10 @@ class Graph : public Node {
     fprop_cache = std::make_shared<ngraph::FpropCache>();
     // is_reuse_mem = context.dev_type != mxnet::Context::kNNP;
     is_reuse_mem = true;
+    for (size_t i = 0; i < kGraphExeModeCount; ++i) {
+      is_bool_[i].resize((int)(NodeReferences::kBackwardOutput) + 1);
+      is_scalar_[i].resize((int)(NodeReferences::kBackwardOutput) + 1);
+    }
   }
 
   ~Graph() override {
@@ -277,6 +288,10 @@ class Graph : public Node {
   // define it for consisteny.
   std::shared_ptr<ngraph::Function> ngraph_forward[kGraphExeModeCount];
   std::shared_ptr<ngraph::Function> ngraph_backward[kGraphExeModeCount];
+
+  std::vector<std::vector<bool>> is_bool_[kGraphExeModeCount];
+  std::vector<std::vector<bool>> is_scalar_[kGraphExeModeCount];
+
   std::shared_ptr<ngraph::FpropCache> fprop_cache;
 
   const mxnet::Context context_;

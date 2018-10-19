@@ -67,23 +67,6 @@ void compile_if_needed(std::shared_ptr<Graph> graph, int mode) {
   }
 }
 
-template <typename T>
-std::vector<bool> is_bool(const T& nodes) {
-  std::vector<bool> bools;
-  for (const auto& node : nodes) {
-    bools.push_back(node->get_element_type() == ngraph::element::boolean);
-  }
-  return bools;
-}
-template <typename T>
-std::vector<bool> is_scal(const T& nodes) {
-  std::vector<bool> bools;
-  for (const auto& node : nodes) {
-    bools.push_back(node->get_shape().size() == 0);
-  }
-  return bools;
-}
-
 // function for computing forward on ngraph
 void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::NDArray> &inputs,
@@ -97,22 +80,24 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     graph->forward_train_computed = true;
   }
   compile_if_needed(graph, mode);
-  auto ngraph_parameters = graph->ngraph_forward[mode]->get_parameters();
-  auto placeholders =
-      get_tensors(inputs, backend, is_bool(ngraph_parameters),
-                  is_scal(ngraph_parameters), nullptr, graph->is_reuse_mem);
+  auto placeholders = get_tensors(
+      inputs, backend, graph->is_bool_[mode][(int)(NodeReferences::kForwardInput)],
+      graph->is_scalar_[mode][(int)(NodeReferences::kForwardInput)], nullptr,
+      graph->is_reuse_mem);
   // for outputs we need to comply with req
-  auto ngraph_results = graph->ngraph_forward[mode]->get_results();
   TensorVector results;
   if (ctx.is_train) {
-    results = get_tensors(outputs, backend, is_bool(ngraph_results),
-                          is_scal(ngraph_results), &req, graph->is_reuse_mem);
+    results = get_tensors(
+        outputs, backend, graph->is_bool_[mode][(int)(NodeReferences::kForwardOutput)],
+        graph->is_scalar_[mode][(int)(NodeReferences::kForwardOutput)], &req,
+        graph->is_reuse_mem);
   } else {
-    results =
-        get_tensors(std::vector<mxnet::NDArray>(
-                        outputs.begin(), outputs.begin() + graph->num_outputs_),
-                    backend, is_bool(ngraph_results), is_scal(ngraph_results),
-                    &req, graph->is_reuse_mem);
+    results = get_tensors(
+        std::vector<mxnet::NDArray>(outputs.begin(),
+                                    outputs.begin() + graph->num_outputs_),
+        backend, graph->is_bool_[mode][(int)(NodeReferences::kForwardOutput)],
+        graph->is_scalar_[mode][(int)(NodeReferences::kForwardOutput)], &req,
+        graph->is_reuse_mem);
   }
 
   if (mode == static_cast<int>(GraphExeMode::kTrain)) {
@@ -122,7 +107,7 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   }
 
   backend->call(graph->ngraph_forward[mode], results, placeholders);
-
+  
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
 
   if (mode == static_cast<int>(GraphExeMode::kInfer)) {
@@ -149,10 +134,10 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   const int mode = static_cast<int>(GraphExeMode::kTrain);
   compile_if_needed(graph, mode);
 
-  auto ngraph_parameters = graph->ngraph_backward[mode]->get_parameters();
-  auto input_tvs =
-      get_tensors(inputs, backend, is_bool(ngraph_parameters),
-                  is_scal(ngraph_parameters), nullptr, graph->is_reuse_mem);
+  auto input_tvs = get_tensors(
+      inputs, backend, graph->is_bool_[mode][(int)(NodeReferences::kBackwardInput)],
+      graph->is_scalar_[mode][(int)(NodeReferences::kBackwardInput)], nullptr,
+      graph->is_reuse_mem);
 
   size_t adjoints = 0;
   if (!graph->zero_grad) {
@@ -182,10 +167,10 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                                  TShape_to_NShape(graph->outputs_[i]->shape_)));
     }
   }
-  auto ngraph_results = graph->ngraph_backward[mode]->get_results();
-  auto results =
-      get_tensors(outputs, backend, is_bool(ngraph_results),
-                  is_scal(ngraph_results), &req, graph->is_reuse_mem);
+  auto results = get_tensors(
+      outputs, backend, graph->is_bool_[mode][(int)(NodeReferences::kBackwardOutput)],
+      graph->is_scalar_[mode][(int)(NodeReferences::kBackwardOutput)], &req,
+      graph->is_reuse_mem);
 
   CHECK(graph->ngraph_backward[mode]);
   backend->call(graph->ngraph_backward[mode], results, placeholders);
