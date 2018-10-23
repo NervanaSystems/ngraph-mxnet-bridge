@@ -64,9 +64,8 @@ inline int getType(const ngraph::element::Type& et) {
   } else if (et == ngraph::element::boolean) {
     return mshadow::kUint8;
   } else {
-    std::cout << et << std::endl;
-    throw std::runtime_error(
-        "NGRAPH_BRIDGE: ngraph element type not supported by NDAarray");
+    LOG(FATAL) << "NGRAPH_BRIDGE: ngraph element type " << et
+               << " not supported by NDAarray";
   }
 }
 
