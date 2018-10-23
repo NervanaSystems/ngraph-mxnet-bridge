@@ -275,6 +275,14 @@ class Graph : public Node {
     return backend;
   }
 
+  const ngraph::ResultVector& get_results() {
+    if (!need_grad || zero_grad) {
+      return ngraph_forward[0]->get_results();
+    } else {
+      return fprop_cache->fprop->get_results();
+    }
+  }
+
   std::shared_ptr<ngraph::runtime::Backend> backend;
 
   bool forward_train_computed{false};
@@ -304,6 +312,7 @@ class Graph : public Node {
   std::vector<std::shared_ptr<OutputElement>> output_elements_;
   std::vector<bool> input_is_weight_;
   bool zero_grad = false;
+  bool need_grad = true;
   // is loss is used to mark graphs as ending in loss layers to
   // handle some zero_grad errors with batch_take
   std::vector<bool> is_loss;

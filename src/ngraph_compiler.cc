@@ -146,12 +146,15 @@ Compiler::Compiler(const nnvm::Graph& graph, const NNVMNodeVec& symbol_inputs,
 }
 
 // compiler for graph with attrs
-Compiler::Compiler(const nnvm::Graph& g, const bool selector_only)
+Compiler::Compiler(const nnvm::Graph& g,
+                   const std::vector<mxnet::OpReqType>& grad_req_types,
+                   const bool selector_only)
     : ngraph_(get_ngraph_name(),
               g.HasAttr("context")
                   ? g.GetAttr<mxnet::exec::ContextVector>("context")[0]
                   : mxnet::Context()) {
   if (!check_graph(g)) return;
+
   shapes_ = g.GetAttr<nnvm::ShapeVector>("shape");
   dtypes_ = g.GetAttr<nnvm::DTypeVector>("dtype");
   stypes_ = g.GetAttr<mxnet::StorageTypeVector>("storage_type");
@@ -162,6 +165,13 @@ Compiler::Compiler(const nnvm::Graph& g, const bool selector_only)
   MakeCopiedInputs(s.ListInputs(nnvm::Symbol::kReadOnlyArgs));
   ParseNnvmGraph(&g);
   CheckInNgraph();
+  ngraph_.need_grad= false;
+  for (auto req : grad_req_types) {
+    if (req != kNullOp) {
+      ngraph_.need_grad = true;
+      break;
+    }
+  }
   graph_.attrs["context"] =
       std::make_shared<nnvm::any>(mxnet::exec::ContextVector(
           graph_.indexed_graph().num_nodes(),
@@ -281,12 +291,15 @@ std::shared_ptr<Graph> Compiler::SGCompile(NodePtr& n) {
   // extract and compile subgraph
   compiler_.setExeMode(GraphExeMode::kInfer);
   auto sg = compiler_.Compile(n);
+  sg->need_grad = ngraph_.need_grad;
 
   // compile subgraph in other execution modes,
   for (int i = 1; i < kGraphExeModeCount; ++i) {
     // set graph execution mode
-    compiler_.setExeMode(static_cast<GraphExeMode>(i));
-    compiler_.Compile(n);
+    if (sg->need_grad) {
+      compiler_.setExeMode(static_cast<GraphExeMode>(i));
+      compiler_.Compile(n);
+    }
   }
 
   // add subgraph to stats tracker

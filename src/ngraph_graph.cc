@@ -27,8 +27,6 @@ std::mutex backends_mutex;
 std::unordered_map<std::string, std::weak_ptr<ngraph::runtime::Backend>>
     backends;
 
-static int ngraph_backend = setenv("MXNET_ENGINE_TYPE", "NaiveEngine", 0);
-
 /**
  * Perform a DFS graph traversal non-recursively but always ensuring
  * that the inputs to a node are operated on before the node.

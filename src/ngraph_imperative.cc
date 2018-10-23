@@ -194,11 +194,19 @@ void InitImperativeOnce() {
       nnvm::Op::GetAttr<mxnet::FStatefulCompute>("FStatefulCompute<cpu>");
   static auto &createop =
       nnvm::Op::GetAttr<mxnet::FCreateOpState>("FCreateOpState");
-
+  std::cout << "op_name,supported" << std::endl;
   for (auto unique_op : dmlc::Registry<nnvm::Op>::List()) {
     auto op_name = unique_op->name;
 
     // skip ops not supported by ngraph imperative
+
+    if ((op_name.substr(0, 9) != "_backward")) {
+      if (NGImperative::check_op_supported(op_name)) {
+        std::cout << op_name << ",1" << std::endl;
+      } else {
+        std::cout << op_name << ",0" <<std::endl;
+      }
+    }
     if ((op_name.substr(0, 9) == "_backward") ||
         !NGImperative::check_op_supported(op_name)) {
       if (ngraph_log_verbose_detail)
@@ -237,7 +245,6 @@ void InitImperativeOnce() {
                   << std::endl;
       continue;
     }
-
     if (fallbackx_fn) {
       op.set_attr<mxnet::FComputeEx>(
           "FComputeEx<cpu>",

@@ -1929,7 +1929,7 @@ void Emitter::CreateLossOps() {
 
     return gradient;
   };
-  loss_op_backward_funcs_["MakeLoss"] = [this](const NodePtr& node,
+  loss_op_backward_funcs_["make_loss"] = [this](const NodePtr& node,
                                                const NgraphNodePtr& adjoint) {
     auto input = op_map_[node->inputs_[0]];
     const std::string norm =

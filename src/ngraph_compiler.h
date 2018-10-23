@@ -224,7 +224,8 @@ class Compiler {
   // Construct base compiler object with context only
   Compiler(const mxnet::Context& context);
   // compiler for graph with attrs
-  Compiler(const nnvm::Graph& g, const bool selector_only = false);
+  Compiler(const nnvm::Graph& g, const std::vector<mxnet::OpReqType>& grad_req_types,
+           const bool selector_only = false);
   // Constructor for use with gluon hybridize
   Compiler(const nnvm::Graph& graph, const NNVMNodeVec& symbol_inputs,
            const std::vector<mxnet::NDArray*>& inputs);
