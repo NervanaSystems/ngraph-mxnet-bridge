@@ -59,11 +59,6 @@ void update_aux_vals(const std::shared_ptr<Graph> &graph,
 
 void compile_if_needed(std::shared_ptr<Graph> graph, int mode) {
   if (mode == static_cast<int>(GraphExeMode::kTrain)) {
-    if (!graph->need_grad) {
-      LOG(FATAL)
-          << "NGRAPH_BRIDGE: This graph was compiled without grad_req but "
-          << "is called in training";
-    }
     if (graph->ngraph_forward[mode] == nullptr) {
       CompileForwardBackward(graph, graph->fprop_cache->fprop,
                              graph->fprop_cache->bprop, GraphExeMode::kTrain,
@@ -78,20 +73,27 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::OpReqType> &req,
                      const std::vector<mxnet::NDArray> &outputs) {
   auto backend = graph->get_backend();
+  bool is_train = ctx.is_train;
+  if (!graph->need_grad) {
+    is_train = false;
+  }
 
   int mode = static_cast<int>(GraphExeMode::kInfer);
-  if (ctx.is_train) {
+  if (is_train) {
     mode = static_cast<int>(GraphExeMode::kTrain);
     graph->forward_train_computed = true;
   }
+
   compile_if_needed(graph, mode);
+
   auto placeholders = get_tensors(
       inputs, backend, graph->bool_nodes_[mode][(int)(NodeReferences::kForwardInput)],
       graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardInput)], nullptr,
       graph->is_reuse_mem);
+
   // for outputs we need to comply with req
   TensorVector results;
-  if (ctx.is_train) {
+  if (is_train) {
     results = get_tensors(
         outputs, backend, graph->bool_nodes_[mode][(int)(NodeReferences::kForwardOutput)],
         graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardOutput)], &req,
@@ -111,11 +113,7 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     }
   }
 
-  if (graph->zero_grad) {
-    backend->call(graph->ngraph_forward[0], results, placeholders);
-  } else {
-    backend->call(graph->ngraph_forward[mode], results, placeholders);
-  }
+  backend->call(graph->ngraph_forward[mode], results, placeholders);
   
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
 
@@ -137,6 +135,10 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                       const std::vector<mxnet::NDArray> &inputs,
                       const std::vector<mxnet::OpReqType> &req,
                       const std::vector<mxnet::NDArray> &outputs) {
+  if (!graph->need_grad) {
+    return;
+  }
+
   // only expect backward is called in training mode
   auto backend = graph->get_backend();
 

@@ -172,6 +172,9 @@ Compiler::Compiler(const nnvm::Graph& g,
       break;
     }
   }
+  if (grad_req_types.size() < 2) {
+    ngraph_.need_grad = true;
+  }
   graph_.attrs["context"] =
       std::make_shared<nnvm::any>(mxnet::exec::ContextVector(
           graph_.indexed_graph().num_nodes(),

@@ -274,7 +274,7 @@ class Graph : public Node {
   }
 
   const ngraph::ResultVector& get_results() {
-    if (!need_grad || zero_grad) {
+    if (!need_grad) {
       return ngraph_forward[0]->get_results();
     } else {
       return fprop_cache->fprop->get_results();
