@@ -59,8 +59,8 @@ class NGImperative : public Compiler {
   static bool check_op_supported(std::string op_name) {
     static OpEmitter emitter_funcs = Emitter().ngraph_op_funcs_;
 
-    static std::unordered_set<std::string> skip_imperative{};
-        // "_copy", "_zeros", "zeros_like", "expand_dims"};
+    static std::unordered_set<std::string> skip_imperative{
+        "_copy", "_zeros", "zeros_like", "expand_dims"};
 
     if (skip_imperative.count(op_name)) return false;
 
