@@ -57,6 +57,8 @@ enum class NodeReferences {
 
 constexpr int kGraphExeModeCount = static_cast<int>(GraphExeMode::kTrain) -
                                      static_cast<int>(GraphExeMode::kInfer) + 1;
+constexpr int kNodeReferencesCount = static_cast<int>(NodeReferences::kBackwardOutput) -
+                                     static_cast<int>(NodeReferences::kForwardInput) + 1;
 
 // Base class for Nodes in Intermediary Analysis Graph
 class Node {
@@ -219,10 +221,6 @@ class Graph : public Node {
     fprop_cache = std::make_shared<ngraph::FpropCache>();
     // is_reuse_mem = context.dev_type != mxnet::Context::kNNP;
     is_reuse_mem = true;
-    for (size_t i = 0; i < kGraphExeModeCount; ++i) {
-      is_bool_[i].resize((int)(NodeReferences::kBackwardOutput) + 1);
-      is_scalar_[i].resize((int)(NodeReferences::kBackwardOutput) + 1);
-    }
   }
 
   ~Graph() override {
@@ -297,8 +295,8 @@ class Graph : public Node {
   std::shared_ptr<ngraph::Function> ngraph_forward[kGraphExeModeCount];
   std::shared_ptr<ngraph::Function> ngraph_backward[kGraphExeModeCount];
 
-  std::vector<std::vector<bool>> is_bool_[kGraphExeModeCount];
-  std::vector<std::vector<bool>> is_scalar_[kGraphExeModeCount];
+  std::vector<bool> bool_nodes_[kGraphExeModeCount][kNodeReferencesCount];
+  std::vector<bool> scalar_nodes_[kGraphExeModeCount][kNodeReferencesCount];
 
   std::shared_ptr<ngraph::FpropCache> fprop_cache;
 

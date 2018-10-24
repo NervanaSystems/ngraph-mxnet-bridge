@@ -66,6 +66,7 @@ inline int getType(const ngraph::element::Type& et) {
   } else {
     LOG(FATAL) << "NGRAPH_BRIDGE: ngraph element type " << et
                << " not supported by NDAarray";
+    throw;
   }
 }
 

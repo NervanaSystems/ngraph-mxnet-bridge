@@ -54,6 +54,32 @@ std::vector<bool> is_scalar(const T& nodes) {
   return bools;
 }
 
+template <typename T>
+void set_bool_and_scalar(std::shared_ptr<Graph> sub_graph,
+                         GraphExeMode exe_mode, NodeReferences node_type,
+                         T nodes) {
+  int mode = static_cast<int>(exe_mode);
+  int type = static_cast<int>(node_type);
+
+  sub_graph->bool_nodes_[mode][type] = ngraph_bridge::is_bool(nodes);
+  sub_graph->scalar_nodes_[mode][type] = ngraph_bridge::is_scalar(nodes);
+}
+
+void set_bool_and_scalar(std::shared_ptr<Graph> sub_graph,
+                         std::shared_ptr<ngraph::Function>f ,
+                         GraphExeMode exe_mode, bool is_forward) {
+  NodeReferences input_type;
+  NodeReferences output_type;
+  if (is_forward) {
+    input_type = NodeReferences::kForwardInput;
+    output_type = NodeReferences::kForwardOutput;
+  } else {
+    input_type = NodeReferences::kBackwardInput;
+    output_type = NodeReferences::kBackwardOutput;
+  }
+  set_bool_and_scalar(sub_graph, exe_mode, input_type, f->get_parameters());
+  set_bool_and_scalar(sub_graph, exe_mode, output_type, f->get_results());
+}
 
 void CompileForward(std::shared_ptr<Graph> sub_graph,
                     std::shared_ptr<ngraph::Function> f,
@@ -80,14 +106,7 @@ void CompileForward(std::shared_ptr<Graph> sub_graph,
   }
   sub_graph->ngraph_forward[mode] = f;
 
-  sub_graph->is_bool_[mode][(int)(NodeReferences::kForwardInput)] =
-      ngraph_bridge::is_bool(f->get_parameters());
-  sub_graph->is_scalar_[mode][(int)(NodeReferences::kForwardInput)] =
-      ngraph_bridge::is_scalar(f->get_parameters());
-  sub_graph->is_bool_[mode][(int)(NodeReferences::kForwardOutput)] =
-      ngraph_bridge::is_bool(f->get_results());
-  sub_graph->is_scalar_[mode][(int)(NodeReferences::kForwardOutput)] =
-      ngraph_bridge::is_scalar(f->get_results());
+  set_bool_and_scalar(sub_graph, f, exe_mode, true);
 }
 
 void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
@@ -149,24 +168,8 @@ void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
   sub_graph->ngraph_forward[mode] = f_copy;
   sub_graph->ngraph_backward[mode] = bf_copy;
   
-  sub_graph->is_bool_[mode][(int)(NodeReferences::kForwardInput)] =
-      ngraph_bridge::is_bool(f_copy->get_parameters());
-  sub_graph->is_scalar_[mode][(int)(NodeReferences::kForwardInput)] =
-      ngraph_bridge::is_scalar(f_copy->get_parameters());
-  sub_graph->is_bool_[mode][(int)(NodeReferences::kForwardOutput)] =
-      ngraph_bridge::is_bool(f_copy->get_results());
-  sub_graph->is_scalar_[mode][(int)(NodeReferences::kForwardOutput)] =
-      ngraph_bridge::is_scalar(f_copy->get_results());
-
-  
-  sub_graph->is_bool_[mode][(int)(NodeReferences::kBackwardInput)] =
-      ngraph_bridge::is_bool(bf_copy->get_parameters());
-  sub_graph->is_scalar_[mode][(int)(NodeReferences::kBackwardInput)] =
-      ngraph_bridge::is_scalar(bf_copy->get_parameters());
-  sub_graph->is_bool_[mode][(int)(NodeReferences::kBackwardOutput)] =
-      ngraph_bridge::is_bool(bf_copy->get_results());
-  sub_graph->is_scalar_[mode][(int)(NodeReferences::kBackwardOutput)] =
-      ngraph_bridge::is_scalar(bf_copy->get_results());
+  set_bool_and_scalar(sub_graph, f_copy, exe_mode, true);
+  set_bool_and_scalar(sub_graph, bf_copy, exe_mode, false);
 }
 
 void OptimizeGraph(std::shared_ptr<Graph> sub_graph,

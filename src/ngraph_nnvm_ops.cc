@@ -86,22 +86,22 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   }
   compile_if_needed(graph, mode);
   auto placeholders = get_tensors(
-      inputs, backend, graph->is_bool_[mode][(int)(NodeReferences::kForwardInput)],
-      graph->is_scalar_[mode][(int)(NodeReferences::kForwardInput)], nullptr,
+      inputs, backend, graph->bool_nodes_[mode][(int)(NodeReferences::kForwardInput)],
+      graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardInput)], nullptr,
       graph->is_reuse_mem);
   // for outputs we need to comply with req
   TensorVector results;
   if (ctx.is_train) {
     results = get_tensors(
-        outputs, backend, graph->is_bool_[mode][(int)(NodeReferences::kForwardOutput)],
-        graph->is_scalar_[mode][(int)(NodeReferences::kForwardOutput)], &req,
+        outputs, backend, graph->bool_nodes_[mode][(int)(NodeReferences::kForwardOutput)],
+        graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardOutput)], &req,
         graph->is_reuse_mem);
   } else {
     results = get_tensors(
         std::vector<mxnet::NDArray>(outputs.begin(),
                                     outputs.begin() + graph->num_outputs_),
-        backend, graph->is_bool_[mode][(int)(NodeReferences::kForwardOutput)],
-        graph->is_scalar_[mode][(int)(NodeReferences::kForwardOutput)], &req,
+        backend, graph->bool_nodes_[mode][(int)(NodeReferences::kForwardOutput)],
+        graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardOutput)], &req,
         graph->is_reuse_mem);
   }
 
@@ -144,8 +144,8 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   compile_if_needed(graph, mode);
 
   auto input_tvs = get_tensors(
-      inputs, backend, graph->is_bool_[mode][(int)(NodeReferences::kBackwardInput)],
-      graph->is_scalar_[mode][(int)(NodeReferences::kBackwardInput)], nullptr,
+      inputs, backend, graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardInput)],
+      graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardInput)], nullptr,
       graph->is_reuse_mem);
 
   size_t adjoints = 0;
@@ -177,8 +177,8 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     }
   }
   auto results = get_tensors(
-      outputs, backend, graph->is_bool_[mode][(int)(NodeReferences::kBackwardOutput)],
-      graph->is_scalar_[mode][(int)(NodeReferences::kBackwardOutput)], &req,
+      outputs, backend, graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardOutput)],
+      graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardOutput)], &req,
       graph->is_reuse_mem);
 
   CHECK(graph->ngraph_backward[mode]);
