@@ -168,12 +168,10 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     }
     ++i;
   }
-
-  if (graph->zero_grad) {
-    for (size_t i = 0; i < graph->num_adjoints_; ++i) {
-      // TODO(mbrookahrt): don't bprop graph if it's zerograd?
+  for (size_t i = 0; i < graph->num_adjoints_; ++i) {
+    if (graph->zero_grad || graph->is_loss[i]) {
       placeholders.insert(
-          placeholders.begin(),
+          placeholders.begin() + i,
           backend->create_tensor(getType(graph->outputs_[i]->dtype_),
                                  TShape_to_NShape(graph->outputs_[i]->shape_)));
     }
