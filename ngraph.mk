@@ -82,6 +82,21 @@ NGRAPH_BUILD_DIR := $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/build
 NGRAPH_INSTALL_DIR := $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/build
 MXNET_LIB_DIR := $(ROOTDIR)/lib
 
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+	OS := $(shell cat /etc/os-release)
+	ifeq ($(findstring CentOS,$(OS)), CentOS)
+		OS := "CentOS"
+	else
+		OS := "Ubuntu"
+	endif
+endif
+
+ifeq ($(OS), "CentOS")
+	NGRAPH_LIB_DIR := $(NGRAPH_INSTALL_DIR)/lib64
+else
+	NGRAPH_LIB_DIR := $(NGRAPH_INSTALL_DIR)/lib
+endif
 
 # The 'clean' target should remove nGraph-related generated files, regardless of whether or not
 # the current Make invocation has USE_NGRAPH=1 ...
@@ -131,7 +146,7 @@ ngraph:
 	@if [[ "$$(uname)" == "Darwin" ]]; then \
 	    cd "$(NGRAPH_INSTALL_DIR)/lib"; tar -c -f - . | tar -x -f - -C "$(MXNET_LIB_DIR)"; \
 	else \
-	    cd "$(NGRAPH_INSTALL_DIR)/lib"; tar c --to-stdout . | tar x --dereference --directory "$(MXNET_LIB_DIR)"; \
+	    cd "$(NGRAPH_LIB_DIR)"; tar c --to-stdout . | tar x --dereference --directory "$(MXNET_LIB_DIR)"; \
 	fi
 
 	@if [[ "$$(uname)" == "Darwin" ]]; then \

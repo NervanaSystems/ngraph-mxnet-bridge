@@ -48,5 +48,11 @@ ExternalProject_Add(
 
 set(NGRAPH_INCLUDE_DIR ${NGRAPH_INSTALL_PREFIX}/include)
 set(NGRAPH_LIB_DIR ${NGRAPH_INSTALL_PREFIX}/lib)
+if(EXISTS "/etc/centos-release")
+    EXECUTE_PROCESS(COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE)
+    if(${ARCHITECTURE} STREQUAL "x86_64")
+        set(NGRAPH_LIB_DIR ${NGRAPH_INSTALL_PREFIX}/lib64)
+    endif()
+endif()
 
 include_directories(${NGRAPH_INCLUDE_DIR})

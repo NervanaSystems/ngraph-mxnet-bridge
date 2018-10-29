@@ -19,7 +19,9 @@ get_filename_component(
     MXNET_PROJECT_SOURCE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
     ABSOLUTE)
-include("${MXNET_PROJECT_SOURCE_DIR}/cmake/ChooseBlas.cmake")
+if(APPLE)
+    include("${MXNET_PROJECT_SOURCE_DIR}/cmake/ChooseBlas.cmake")
+endif()
 
 set(SRC
     ngraph_compiler.cc
