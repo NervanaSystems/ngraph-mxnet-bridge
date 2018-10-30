@@ -172,6 +172,9 @@ Compiler::Compiler(const nnvm::Graph& g,
       break;
     }
   }
+  // TODO(mbrookhart): Some unit tests only have one data input, don't want to
+  // bprop to that data, but still test backward. I'm not sure I understand the test
+  // but this is a workaround. Try to find a cleaner solution.
   if (grad_req_types.size() < 2) {
     ngraph_.need_grad = true;
   }
@@ -187,6 +190,7 @@ Compiler::Compiler(const nnvm::Graph& g,
 }
 
 // Compiler initialization
+// DEPRECATED
 Compiler::Compiler(const nnvm::Graph& graph, const NDArrayMap& feed_dict,
                    const NNVMNodeVec& inputs, const BindArgBase& bindbase,
                    const mxnet::Context& context)

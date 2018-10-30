@@ -275,7 +275,7 @@ class Graph : public Node {
 
   const ngraph::ResultVector& get_results() {
     if (!need_grad) {
-      return ngraph_forward[0]->get_results();
+      return ngraph_forward[static_cast<int>(GraphExeMode::kInfer)]->get_results();
     } else {
       return fprop_cache->fprop->get_results();
     }
@@ -310,6 +310,9 @@ class Graph : public Node {
   std::vector<std::shared_ptr<OutputElement>> output_elements_;
   std::vector<bool> input_is_weight_;
   bool zero_grad = false;
+  // By default, we assume need_grad is always true
+  // we only know grad_req for Paritition Graph passes, so
+  // only allow need_grad False when compiling from Partition Graph
   bool need_grad = true;
   // is loss is used to mark graphs as ending in loss layers to
   // handle some zero_grad errors with batch_take
