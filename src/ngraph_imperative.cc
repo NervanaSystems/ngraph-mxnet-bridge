@@ -237,7 +237,6 @@ void InitImperativeOnce() {
                   << std::endl;
       continue;
     }
-
     if (fallbackx_fn) {
       op.set_attr<mxnet::FComputeEx>(
           "FComputeEx<cpu>",

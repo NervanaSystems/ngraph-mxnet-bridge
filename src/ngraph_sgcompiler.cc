@@ -37,6 +37,50 @@
 
 namespace ngraph_bridge {
 
+template <typename T>
+std::vector<bool> is_bool(const T& nodes) {
+  std::vector<bool> bools;
+  for (const auto& node : nodes) {
+    bools.push_back(node->get_element_type() == ngraph::element::boolean);
+  }
+  return bools;
+}
+template <typename T>
+std::vector<bool> is_scalar(const T& nodes) {
+  std::vector<bool> bools;
+  for (const auto& node : nodes) {
+    bools.push_back(node->get_shape().size() == 0);
+  }
+  return bools;
+}
+
+template <typename T>
+void set_bool_and_scalar(std::shared_ptr<Graph> sub_graph,
+                         GraphExeMode exe_mode, NodeReferences node_type,
+                         T nodes) {
+  int mode = static_cast<int>(exe_mode);
+  int type = static_cast<int>(node_type);
+
+  sub_graph->bool_nodes_[mode][type] = ngraph_bridge::is_bool(nodes);
+  sub_graph->scalar_nodes_[mode][type] = ngraph_bridge::is_scalar(nodes);
+}
+
+void set_bool_and_scalar(std::shared_ptr<Graph> sub_graph,
+                         std::shared_ptr<ngraph::Function>f ,
+                         GraphExeMode exe_mode, bool is_forward) {
+  NodeReferences input_type;
+  NodeReferences output_type;
+  if (is_forward) {
+    input_type = NodeReferences::kForwardInput;
+    output_type = NodeReferences::kForwardOutput;
+  } else {
+    input_type = NodeReferences::kBackwardInput;
+    output_type = NodeReferences::kBackwardOutput;
+  }
+  set_bool_and_scalar(sub_graph, exe_mode, input_type, f->get_parameters());
+  set_bool_and_scalar(sub_graph, exe_mode, output_type, f->get_results());
+}
+
 void CompileForward(std::shared_ptr<Graph> sub_graph,
                     std::shared_ptr<ngraph::Function> f,
                     GraphExeMode exe_mode) {
@@ -61,6 +105,8 @@ void CompileForward(std::shared_ptr<Graph> sub_graph,
     dump_graph(f, __func__, "fprop_compiled");
   }
   sub_graph->ngraph_forward[mode] = f;
+
+  set_bool_and_scalar(sub_graph, f, exe_mode, true);
 }
 
 void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
@@ -93,9 +139,10 @@ void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
 
   auto results = f_copy->get_results();
   for (size_t i = 0; i < (sub_graph->num_outputs_ +
-                          sub_graph->cached_aux_values[mode].size());
-       ++i)
+                          sub_graph->cached_aux_positions[mode].size());
+       ++i) {
     results[i]->set_needs_default_layout(true);
+  }
 
   backend->compile(f_copy);
 
@@ -105,10 +152,8 @@ void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
       auto bf_param = fprop_cache.node_param_map->get(result->get_argument(0));
       if (bfmap.get_node_map().count(bf_param) != 0) {
         auto cloned_bf_param = bfmap.get(bf_param);
-        auto layout =
-            cloned_result->get_output_tensor().get_tensor_layout();
-        cloned_bf_param->get_output_tensor().set_tensor_layout(
-            layout);
+        auto layout = cloned_result->get_output_tensor().get_tensor_layout();
+        cloned_bf_param->get_output_tensor().set_tensor_layout(layout);
       }
     }
   }
@@ -122,6 +167,9 @@ void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
   }
   sub_graph->ngraph_forward[mode] = f_copy;
   sub_graph->ngraph_backward[mode] = bf_copy;
+  
+  set_bool_and_scalar(sub_graph, f_copy, exe_mode, true);
+  set_bool_and_scalar(sub_graph, bf_copy, exe_mode, false);
 }
 
 void OptimizeGraph(std::shared_ptr<Graph> sub_graph,
@@ -212,8 +260,6 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeForwardFunction(
         outputs.push_back(ngraph_node);
 
         // cache aux node
-        sub_graph->cached_aux_values[mode].push_back(backend->create_tensor(
-            ngraph_node->get_element_type(), ngraph_node->get_shape()));
         sub_graph->cached_aux_positions[mode].push_back(i);
       }
       i += 1;
@@ -309,7 +355,6 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeBackwardFunction(
 void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
   auto backend = sub_graph->get_backend();
 
-
   // initalize a placeholder order vector for this subgraph
   for (auto i : sub_graph->inputs_) placeholder_order_.push_back(i);
 
@@ -347,11 +392,6 @@ void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
     if (ngraph_log_graph()) {
       dump_graph(sub_graph->fprop_cache->fprop, __func__, "fprop_cache.fprop");
       dump_graph(sub_graph->fprop_cache->bprop, __func__, "fprop_cache.bprop");
-    }
-
-    for (auto node : sub_graph->fprop_cache->fprop_output_nodes) {
-      sub_graph->cached_values[static_cast<int>(exe_mode_)].push_back(
-          backend->create_tensor(node->get_element_type(), node->get_shape()));
     }
 
     return;

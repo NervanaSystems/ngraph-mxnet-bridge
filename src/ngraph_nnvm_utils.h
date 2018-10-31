@@ -28,8 +28,7 @@
 
 namespace ngraph_bridge {
 
-using TensorVector =
-    std::vector<std::shared_ptr<ngraph::runtime::Tensor>>;
+using TensorVector = std::vector<std::shared_ptr<ngraph::runtime::Tensor>>;
 using ngraph::runtime::Tensor;
 
 // Simple utility for getting the total number of bytes in a
@@ -81,16 +80,18 @@ inline TensorVector make_ngraph_placeholders(
 inline TensorVector get_tensors(
     const std::vector<mxnet::NDArray>& ndarrays,
     std::shared_ptr<ngraph::runtime::Backend> backend,
+    std::vector<bool> is_boolean,
+    std::vector<bool> is_scalar,
     const std::vector<mxnet::OpReqType>* req = nullptr,
     const bool mem_reuse = true) {
   TensorVector out;
   for (size_t i = 0; i < ndarrays.size(); ++i) {
-    if (!mem_reuse || ((req != nullptr) && ((*req)[i] == mxnet::kAddTo)))
-      out.push_back(
-          NDArray_to_Tensor(ndarrays[i], backend, req == nullptr));
-    else
-      out.push_back(
-          const_cast<mxnet::NDArray&>(ndarrays[i]).create_tensor());
+    if (!mem_reuse || ((req != nullptr) && ((*req)[i] == mxnet::kAddTo))) {
+      out.push_back(NDArray_to_Tensor(ndarrays[i], backend, (req == nullptr)));
+    } else {
+      out.push_back(const_cast<mxnet::NDArray&>(ndarrays[i])
+                        .create_tensor(is_boolean[i], is_scalar[i]));
+    }
   }
   return out;
 }
