@@ -32,6 +32,10 @@ std::ostream& operator<<(std::ostream& os, const nnvm::TShape& s) {
   return container_to_debug_stream(os, s);
 }
 
+std::ostream& operator<<(std::ostream& os, const std::vector<float>& s) {
+  return container_to_debug_stream(os, s);
+}
+
 ngraph::AxisSet shape_to_axis_set(const ngraph::Shape& s) {
   ngraph::AxisSet result;
 

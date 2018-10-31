@@ -30,11 +30,11 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include <thread>
 
 #include <ngraph/ngraph.hpp>
 #include "ngraph_graph_utils.h"
@@ -48,8 +48,17 @@ using nnvmNodePtr = std::shared_ptr<nnvm::Node>;
 // Possible Types of nodes in Current Version
 enum class NodeType { kVariable, kAux, kOp, kGraph, kOutput };
 enum class GraphExeMode { kInfer = 0, kTrain };
+enum class NodeReferences {
+  kForwardInput = 0,
+  kForwardOutput,
+  kBackwardInput,
+  kBackwardOutput
+};
+
 constexpr int kGraphExeModeCount = static_cast<int>(GraphExeMode::kTrain) -
-                                   static_cast<int>(GraphExeMode::kInfer) + 1;
+                                     static_cast<int>(GraphExeMode::kInfer) + 1;
+constexpr int kNodeReferencesCount = static_cast<int>(NodeReferences::kBackwardOutput) -
+                                     static_cast<int>(NodeReferences::kForwardInput) + 1;
 
 // Base class for Nodes in Intermediary Analysis Graph
 class Node {
@@ -155,8 +164,7 @@ class OpNode : public Node {
 };
 
 extern std::mutex backends_mutex;
-extern std::unordered_map<std::string,
-                          std::weak_ptr<ngraph::runtime::Backend>>
+extern std::unordered_map<std::string, std::weak_ptr<ngraph::runtime::Backend>>
     backends;
 
 inline std::string get_backend_name(const mxnet::Context &context) {
@@ -170,23 +178,22 @@ inline std::string get_backend_name(const mxnet::Context &context) {
   } else if (context.dev_type == mxnet::Context::GPU().dev_type) {
     return "GPU";
 #endif
-// } else if (context.dev_type == mxnet::Context::NNP().dev_type) {
-//   return "NNP";
+    // } else if (context.dev_type == mxnet::Context::NNP().dev_type) {
+    //   return "NNP";
   } else {
     return "INTERPRETER";
   }
 }
 
 inline std::shared_ptr<ngraph::runtime::Backend> GetBackendFromContext(
-  const mxnet::Context &context) {
+    const mxnet::Context &context) {
   auto backend_name = get_backend_name(context);
   auto backend_key = backend_name + ":" + std::to_string(context.dev_id);
   // atomic write access to the static backend weak_ptr
   std::unique_lock<std::mutex> lock(backends_mutex);
   // retrieve or default construct a backend weak_ptr
   auto backend = backends[backend_key].lock();
-  if (backend == nullptr)
-  {
+  if (backend == nullptr) {
     backend = ngraph::runtime::Backend::create(backend_key);
     backends[backend_key] = backend;
   }
@@ -218,8 +225,7 @@ class Graph : public Node {
 
   ~Graph() override {
     // Clean up nGraph's compilation cache so we don't have a memory leak
-    if (backend)
-    {
+    if (backend) {
       for (int i = 0; i < kGraphExeModeCount; ++i) {
         if (ngraph_forward[i]) {
           backend->remove_compiled_function(ngraph_forward[i]);
@@ -267,6 +273,14 @@ class Graph : public Node {
     return backend;
   }
 
+  const ngraph::ResultVector& get_results() {
+    if (!need_grad) {
+      return ngraph_forward[static_cast<int>(GraphExeMode::kInfer)]->get_results();
+    } else {
+      return fprop_cache->fprop->get_results();
+    }
+  }
+
   std::shared_ptr<ngraph::runtime::Backend> backend;
 
   bool forward_train_computed{false};
@@ -280,13 +294,13 @@ class Graph : public Node {
   // define it for consisteny.
   std::shared_ptr<ngraph::Function> ngraph_forward[kGraphExeModeCount];
   std::shared_ptr<ngraph::Function> ngraph_backward[kGraphExeModeCount];
+
+  std::vector<bool> bool_nodes_[kGraphExeModeCount][kNodeReferencesCount];
+  std::vector<bool> scalar_nodes_[kGraphExeModeCount][kNodeReferencesCount];
+
   std::shared_ptr<ngraph::FpropCache> fprop_cache;
 
   const mxnet::Context context_;
-  std::vector<std::shared_ptr<ngraph::runtime::Tensor>>
-      cached_values[kGraphExeModeCount];
-  std::vector<std::shared_ptr<ngraph::runtime::Tensor>>
-      cached_aux_values[kGraphExeModeCount];
 
   std::vector<int> cached_aux_positions[kGraphExeModeCount];
 
@@ -296,6 +310,10 @@ class Graph : public Node {
   std::vector<std::shared_ptr<OutputElement>> output_elements_;
   std::vector<bool> input_is_weight_;
   bool zero_grad = false;
+  // By default, we assume need_grad is always true
+  // we only know grad_req for Paritition Graph passes, so
+  // only allow need_grad False when compiling from Partition Graph
+  bool need_grad = true;
   // is loss is used to mark graphs as ending in loss layers to
   // handle some zero_grad errors with batch_take
   std::vector<bool> is_loss;

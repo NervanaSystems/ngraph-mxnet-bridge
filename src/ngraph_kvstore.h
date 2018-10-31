@@ -40,6 +40,7 @@ class KVStoreNGRAPH : public mxnet::kvstore::KVStoreLocal {
   int get_group_size() const override { return dist.get_size(); }
 
   int get_rank() const override { return dist.get_rank(); }
+
  private:
   ngraph::Distributed dist;
 };

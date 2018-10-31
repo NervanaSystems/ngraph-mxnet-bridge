@@ -196,10 +196,10 @@ inline bool check_graph(const nnvm::Graph& g) {
   if (g_ctx.size() < 1) return false;
   auto default_ctx = g_ctx[0];
 
-  #if MXNET_USE_CUDA
-    static const bool ngraph_gpu_enable = dmlc::GetEnv("MXNET_NGRAPH_GPU", false);
-    if (!ngraph_gpu_enable && default_ctx == mxnet::Context::GPU()) return false;
-  #endif
+#if MXNET_USE_CUDA
+  static const bool ngraph_gpu_enable = dmlc::GetEnv("MXNET_NGRAPH_GPU", false);
+  if (!ngraph_gpu_enable && default_ctx == mxnet::Context::GPU()) return false;
+#endif
 
   // only one ctx supported per graph
   for (auto c : g_ctx) {
@@ -224,7 +224,8 @@ class Compiler {
   // Construct base compiler object with context only
   Compiler(const mxnet::Context& context);
   // compiler for graph with attrs
-  Compiler(const nnvm::Graph& g, const bool selector_only = false);
+  Compiler(const nnvm::Graph& g, const std::vector<mxnet::OpReqType>& grad_req_types,
+           const bool selector_only = false);
   // Constructor for use with gluon hybridize
   Compiler(const nnvm::Graph& graph, const NNVMNodeVec& symbol_inputs,
            const std::vector<mxnet::NDArray*>& inputs);
