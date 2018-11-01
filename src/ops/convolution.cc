@@ -114,7 +114,7 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   auto& conv_param = param_.full_conv_param.conv_param;
   auto bn_param = param_.bn_param.get();
   auto conv_inputs = get_conv_inputs(emitter, node, conv_param);
-  if (conv_inputs.groups != 1 || !conv_inputs_bias) {
+  if (conv_inputs.groups != 1 || !conv_inputs.bias) {
     throw std::runtime_error(
         "nobias or group>1 not supported by quantized_conv for now");
   }
