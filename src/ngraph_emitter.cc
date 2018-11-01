@@ -1527,6 +1527,10 @@ void Emitter::CreateLayerOps() {
       [this](const NodePtr& node) -> NgraphNodePtr {
     return create_convolution(this, node);
   };
+  ngraph_op_funcs_["_sg_mkldnn_conv"] =
+      [this](const NodePtr& node) -> NgraphNodePtr {
+    return create_quantized_convolution(this, node);
+  };
 
   ngraph_op_funcs_["Deconvolution"] =
       [this](const NodePtr& node) -> NgraphNodePtr {
@@ -1770,11 +1774,13 @@ void Emitter::CreateLayerOps() {
         op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{});
     auto arg2 = std::make_shared<ngraph::op::Reshape>(
         op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
-
+    auto min = makeConstant(ngraph::element::f32, ngraph::Shape{}, "0.0");
+    auto max = makeConstant(ngraph::element::f32, ngraph::Shape{}, "1.0");
     const ngraph::AxisSet quantization_axes;
     auto round_mode = ngraph::op::Quantize::RoundMode::HALF_AWAY_FROM_ZERO;
 
-    auto op = ngraph::builder::ScaledQuantize(arg0, arg1, arg2,
+    /* auto op = ngraph::builder::ScaledQuantize(arg0, arg1, arg2, */
+    auto op = ngraph::builder::ScaledQuantize(arg0, min, max,
                                               getType(param.out_type),
                                               quantization_axes, round_mode);
 
@@ -1792,9 +1798,12 @@ void Emitter::CreateLayerOps() {
         op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
 
     const ngraph::AxisSet quantization_axes;
+    auto min = makeConstant(ngraph::element::f32, ngraph::Shape{}, "0.0");
+    auto max = makeConstant(ngraph::element::f32, ngraph::Shape{}, "1.0");
 
     auto op = ngraph::builder::ScaledDequantize(
-        arg0, arg1, arg2, getType(param.out_type), quantization_axes);
+        arg0, min, max, getType(param.out_type), quantization_axes);
+        /* arg0, arg1, arg2, getType(param.out_type), quantization_axes); */
     return op;
   };
 }

@@ -18,8 +18,11 @@
 #include "../../../../src/operator/nn/convolution-inl.h"
 #include "convolution.h"
 
+#include <ngraph/builder/quantization.hpp>
 #include "../ngraph_emitter.h"
 #include "../ngraph_emitter_utils.h"
+#include "../ngraph_nnvm_ops.h"
+#include "../ngraph_sgcompiler_utils.h"
 #include "../ngraph_utils.h"
 
 namespace ngraph_bridge {
@@ -34,9 +37,8 @@ struct ConvInputs {
   size_t groups;
 };
 
-ConvInputs get_conv_inputs(Emitter* emitter, const NodePtr& node) {
-  const auto& param =
-      nnvm::get<mxnet::op::ConvolutionParam>(node->orig_node_->attrs.parsed);
+ConvInputs get_conv_inputs(Emitter* emitter, const NodePtr& node,
+                           const mxnet::op::ConvolutionParam& param) {
   ConvInputs conv_inputs;
   conv_inputs.data = emitter->op_map_[node->inputs_[0]];
   conv_inputs.filter = emitter->op_map_[node->inputs_[1]];
@@ -51,7 +53,9 @@ ConvInputs get_conv_inputs(Emitter* emitter, const NodePtr& node) {
   return conv_inputs;
 }
 NgraphNodePtr create_convolution(Emitter* emitter, const NodePtr& node) {
-  auto conv_inputs = get_conv_inputs(emitter, node);
+  const auto& param =
+      nnvm::get<mxnet::op::ConvolutionParam>(node->orig_node_->attrs.parsed);
+  auto conv_inputs = get_conv_inputs(emitter, node, param);
 
   auto dshape = conv_inputs.data->get_shape();
   auto fshape = conv_inputs.filter->get_shape();
@@ -103,28 +107,41 @@ NgraphNodePtr create_convolution(Emitter* emitter, const NodePtr& node) {
 
 NgraphNodePtr create_quantized_convolution(Emitter* emitter,
                                            const NodePtr& node) {
-  auto conv_inputs = get_conv_inputs(emitter, node);
-  if (conv_inputs.groups != 1) {
+  const auto& param_ = nnvm::get<mxnet::op::MKLDNNConvFusionParam>(
+      node->orig_node_->attrs.parsed);
+  auto& full_conv_param = param_.full_conv_param;
+  auto& mkldnn_param = param_.full_conv_param.mkldnn_param;
+  auto& conv_param = param_.full_conv_param.conv_param;
+  auto bn_param = param_.bn_param.get();
+  auto conv_inputs = get_conv_inputs(emitter, node, conv_param);
+  if (conv_inputs.groups != 1 || !conv_inputs_bias) {
     throw std::runtime_error(
-        "groups > 1 not supported by ngraph quantized_convolution");
+        "nobias or group>1 not supported by quantized_conv for now");
   }
+  auto fshape = conv_inputs.filter->get_shape();
   auto data_n = emitter->op_map_[node->inputs_[3]];
   auto data_m = emitter->op_map_[node->inputs_[4]];
   auto filter_n = emitter->op_map_[node->inputs_[5]];
   auto filter_m = emitter->op_map_[node->inputs_[6]];
-  NgraphNodePtr bias_n, bias_m;
+  NgraphNodePtr bias, bias_n, bias_m;
   if (conv_inputs.bias) {
     bias_n = emitter->op_map_[node->inputs_[3]];
     bias_m = emitter->op_map_[node->inputs_[4]];
+    ngraph::Shape bias_shape(fshape.size(), 1);
+    bias_shape[1] = fshape[0];
+    ngraph::AxisVector order(1, 0);
+    bias = std::make_shared<ngraph::op::Reshape>(conv_inputs.bias, order,
+                                                 bias_shape);
   }
+  auto min = makeConstant(ngraph::element::f32, ngraph::Shape{},
+                          std::to_string(mkldnn_param.min_calib_range.value()));
+  auto max = makeConstant(ngraph::element::f32, ngraph::Shape{},
+                          std::to_string(mkldnn_param.max_calib_range.value()));
 
-  auto dshape = conv_inputs.data->get_shape();
-  auto fshape = conv_inputs.filter->get_shape();
-
-  NgraphNodePtr convolution = nullptr;
-  convolution = std::make_shared<ngraph::op::Convolution>(
-      conv_inputs.data, conv_inputs.filter, conv_inputs.stride,
-      conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad);
-  return convolution;
+  auto conv = ngraph::builder::ScaledQuantizedConvolutionBias(
+      conv_inputs.data, conv_inputs.filter, bias, conv_inputs.stride,
+      conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad, conv_inputs.dilate,
+      data_n, data_m, filter_n, filter_m, min, max);
+  return conv;
 }
 }
