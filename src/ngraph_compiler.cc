@@ -210,13 +210,20 @@ Compiler::Compiler(const nnvm::Graph& graph, const NDArrayMap& feed_dict,
   ProcessGraph(feed_dict);
 }
 
+
 void Compiler::ReshapeGraph(const nnvm::ShapeVector& new_shapes) {
-  sub_ngraph_ = nullptr;
+  std::unordered_set<NodePtr> visited;
+  ngraph_.clear_nodes(visited);
+  sub_ngraph_->clear_nodes(visited);
+  compiled_nodes_.clear();
+  visited.clear();
+
   for (size_t i = 0; i < new_shapes.size(); ++i) {
     shapes_[i] = new_shapes[i];
   }
-  ngraph_.nodes_.clear();
-  ngraph_.entry_map_.clear();
+
+  sub_ngraph_ = nullptr;
+
   nnvm::Graph graph;
   graph.outputs = graph_.outputs;
 
@@ -435,6 +442,7 @@ void Compiler::CleanUpUneededReferences() {
     kv.first->nodes_.clear();
     kv.first->entry_map_.clear();
   }
+
 }
 
 // assumes there is only one ngraph

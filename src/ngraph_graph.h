@@ -281,6 +281,7 @@ class Graph : public Node {
     }
   }
 
+  void clear_nodes(std::unordered_set<NodePtr> &visited);
   std::shared_ptr<ngraph::runtime::Backend> backend;
 
   bool forward_train_computed{false};
