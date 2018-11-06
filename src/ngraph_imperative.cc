@@ -77,7 +77,7 @@ NGImperative::NGImperative(const nnvm::Symbol &sym, const mxnet::Context &ctx,
   // construct single symbol nnvm graph and create ngraph
   nnvm::Graph g;
   g.outputs = sym.outputs;
-  for (auto i : inputs) {
+  for (const auto& i : inputs) {
     shapes_.push_back(i.shape());
     dtypes_.push_back(i.dtype());
     stypes_.push_back(mxnet::kDefaultStorage);
