@@ -38,6 +38,12 @@ set(SRC
     )
 
 add_library(ngraph-mxnet-bridge OBJECT ${SRC})
+if(USE_CUDA)
+    find_package(CUDA REQUIRED)
+    add_definitions(-DMSHADOW_USE_CUDA=1)
+else()
+    add_definitions(-DMSHADOW_USE_CUDA=0)
+endif()
 if (BLAS STREQUAL "MKL" OR BLAS STREQUAL "mkl")
     add_definitions(-DMSHADOW_USE_MKL=1)
     add_definitions(-DMSHADOW_USE_CBLAS=0)
@@ -47,5 +53,4 @@ else()
 endif()
 
 
-add_definitions(-DMSHADOW_USE_CUDA=0)
 add_definitions(-DMXNET_USE_NGRAPH=1)
