@@ -198,7 +198,10 @@ inline bool check_graph(const nnvm::Graph& g) {
 
 #if MXNET_USE_CUDA
   static const bool ngraph_gpu_enable = dmlc::GetEnv("MXNET_NGRAPH_GPU", false);
-  if (!ngraph_gpu_enable && default_ctx == mxnet::Context::GPU()) return false;
+  if (!ngraph_gpu_enable &&
+      default_ctx.dev_type == mxnet::Context::GPU().dev_type) {
+    return false;
+  }
 #endif
 
   // only one ctx supported per graph
