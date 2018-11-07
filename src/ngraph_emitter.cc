@@ -988,6 +988,8 @@ struct PoolingParams {
       for (size_t i = 2; i < input_shape.size(); ++i) {
         kernel.push_back(input_shape[i]);
       }
+      stride = default_ones;
+      pad = default_zeros;
     }
   }
 
@@ -1997,6 +1999,16 @@ void Emitter::UnsupportedOps() {
   for (auto kv : ngraph_op_funcs_) {
     supported_ops[kv.first] = [](const NodePtr& node) { return true; };
   }
+  supported_ops["Pooling"] = [](const NodePtr& node) {
+    auto pooling_convention =
+        get_default(node, "pooling_convention", std::string("valid"));
+    std::vector<std::string> supported{"max", "sum", "avg"};
+    if (std::find(supported.begin(), supported.end(),
+        pooling_convention) == supported.end()) {
+      return false;
+    }
+    return true;
+  };
   supported_ops["LeakyReLU"] = [](const NodePtr& node) {
     bool out = true;
     // We haven't yet implemented all activation functions for
