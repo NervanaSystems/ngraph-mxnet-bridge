@@ -87,8 +87,6 @@ ifeq ($(UNAME_S),Linux)
 	OS := $(shell cat /etc/os-release)
 	ifeq ($(findstring CentOS,$(OS)), CentOS)
 		OS := "CentOS"
-	else
-		OS := "Ubuntu"
 	endif
 endif
 
