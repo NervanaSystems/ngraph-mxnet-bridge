@@ -72,6 +72,22 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::NDArray> &inputs,
                      const std::vector<mxnet::OpReqType> &req,
                      const std::vector<mxnet::NDArray> &outputs) {
+  std::cout << "#### FORWARD ####" << std::endl;
+  std::cout << "#### graph " << graph->name_ << std::endl;
+  for (auto& n : graph->inputs_) {
+    std::cout << "input: " << n->orig_node_->attrs.name << " " << n->shape_ << std::endl;
+  }
+  for (auto& n : graph->nodes_) {
+    std::cout << "node: " << n->orig_node_->attrs.name << " " << n->shape_ << std::endl;
+  }
+  for (const auto& in: inputs) {
+    std::cout << "input: " << in.data().Size() << std::endl;
+    for (int i = 0; i < std::min(50L, in.data().Size()); ++i) {
+      std::cout << in.data().dptr<float>()[i] << " ";
+    }
+    std::cout << std::endl;
+  }
+
   auto backend = graph->get_backend();
   bool is_train = ctx.is_train;
   if (!graph->need_grad) {
@@ -114,8 +130,14 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   }
 
   backend->call(graph->ngraph_forward[mode], results, placeholders);
-  
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
+  for (const auto& out : outputs) {
+    std::cout << "output: " << out.data().Size() << std::endl;
+    for (int i = 0; i < std::min(50L, out.data().Size()); ++i) {
+      std::cout << out.data().dptr<float>()[i] << " ";
+    }
+    std::cout << std::endl;
+  }
 
   if (mode == static_cast<int>(GraphExeMode::kInfer)) {
     for (size_t i = 0; i < placeholders.size(); ++i) {
