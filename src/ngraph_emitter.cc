@@ -2000,11 +2000,10 @@ void Emitter::UnsupportedOps() {
     supported_ops[kv.first] = [](const NodePtr& node) { return true; };
   }
   supported_ops["Pooling"] = [](const NodePtr& node) {
-    auto pooling_convention =
-        get_default(node, "pooling_convention", std::string("valid"));
+    auto pool_type = get_default(node, "pool_type", std::string("max"));
     std::vector<std::string> supported{"max", "sum", "avg"};
     if (std::find(supported.begin(), supported.end(),
-        pooling_convention) == supported.end()) {
+        pool_type) == supported.end()) {
       return false;
     }
     return true;
