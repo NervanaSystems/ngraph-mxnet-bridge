@@ -53,6 +53,7 @@ inline std::shared_ptr<Tensor> NDArray_to_Tensor(
   auto TV = backend->create_tensor(element_type, shape);
 
   if (copy) {
+    CHECK(input.storage_handle().dptr != nullptr);
     auto buffer_size = get_buffer_size(shape, element_type.size());
     TV->write(input.storage_handle().dptr, 0, buffer_size);
   }
@@ -118,8 +119,10 @@ inline void result_to_NDArray(
     auto buffer_size = get_buffer_size(outputs[i].shape(), element_type.size());
 
     void* mxnet_ndarray = outputs[i].storage_handle().dptr;
+    CHECK(mxnet_ndarray != nullptr);
     if (req[i] == mxnet::kAddTo) {
       void* ngraph_tv = malloc(buffer_size);
+      CHECK(ngraph_tv != nullptr);
       results[i]->read(ngraph_tv, 0, buffer_size);
 
       if (element_type == ngraph::element::f32)

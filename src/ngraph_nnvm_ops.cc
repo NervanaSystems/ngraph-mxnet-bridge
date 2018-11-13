@@ -113,6 +113,9 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     }
   }
 
+  CHECK_EQ(placeholders.size(), graph->ngraph_forward[mode]->get_parameters().size());
+  CHECK_EQ(results.size(), graph->ngraph_forward[mode]->get_results().size());
+
   backend->call(graph->ngraph_forward[mode], results, placeholders);
   
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
@@ -182,6 +185,9 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
       graph->is_reuse_mem);
 
   CHECK(graph->ngraph_backward[mode]);
+  CHECK_EQ(placeholders.size(), graph->ngraph_backward[mode]->get_parameters().size());
+  CHECK_EQ(results.size(), graph->ngraph_backward[mode]->get_results().size());
+
   backend->call(graph->ngraph_backward[mode], results, placeholders);
 
   // reset the forward training compute flag to ensure backward always have
