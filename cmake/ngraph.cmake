@@ -62,6 +62,11 @@ ExternalProject_Add(
 )
 
 set(NGRAPH_INCLUDE_DIR ${NGRAPH_INSTALL_PREFIX}/include)
-set(NGRAPH_LIB_DIR ${NGRAPH_INSTALL_PREFIX}/lib)
-
+find_library(NGRAPH_LIB_DIR
+    NAMES ngraph
+    PATHS
+    ${NGRAPH_INSTALL_PREFIX}/lib
+    ${NGRAPH_INSTALL_PREFIX}/lib64
+    NO_DEFAULT_PATH
+)
 include_directories(${NGRAPH_INCLUDE_DIR})
