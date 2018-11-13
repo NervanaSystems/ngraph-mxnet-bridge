@@ -61,6 +61,12 @@ ExternalProject_Add(
 	BUILD_ALWAYS 1
 )
 
+if (USE_MKLDNN AND (NOT MSVC))
+  add_dependencies( ext_ngraph
+    mkldnn_libs_in_build_root
+    )
+endif()
+
 set(NGRAPH_INCLUDE_DIR ${NGRAPH_INSTALL_PREFIX}/include)
 set(NGRAPH_LIB_DIR ${NGRAPH_INSTALL_PREFIX}/lib)
 
