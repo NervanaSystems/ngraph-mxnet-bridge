@@ -19,6 +19,8 @@ get_filename_component(
     MXNET_PROJECT_SOURCE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
     ABSOLUTE)
+# This is needed for OS X. However, it causes blas problems on CentOS: cmake
+# complains about not finding Atlas, even though Atlas is already installed.
 if(APPLE)
     include("${MXNET_PROJECT_SOURCE_DIR}/cmake/ChooseBlas.cmake")
 endif()
