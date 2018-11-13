@@ -190,6 +190,26 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
     -l$(NGRAPH_MKLML_LIB_) \
     -lmkldnn
 
+  # Flags required for SDL325
+  NGRAPH_CFLAGS += -O2 -D_FORTIFY_SOURCE=2 -fPIC
+  NGRAPH_CFLAGS += -Wformat -Wformat-security
+  ifeq ("$(shell uname)","Darwin")
+    NGRAPH_SDL_LDFLAGS_ += -Wl,-bind_at_load
+  else
+    NGRAPH_SDL_LDFLAGS_ += -pie
+    NGRAPH_SDL_LDFLAGS_ += -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
+  endif
+  ifneq ("$(CXX)","clang")
+    MIN_VERSION := "4.9"
+    CXX_VERSION := "`$(CXX) -dumpversion`"
+    IS_VERSION_LESS := $(shell expr "$(CXX_VERSION)" "<" "$(MIN_VERSION)")
+    ifeq ("$(IS_VERSION_LESS)","1")
+      NGRAPH_CFLAGS += -fstack-protector
+    else
+      NGRAPH_CFLAGS += -fstack-protector-strong
+    endif
+  endif
+
   ifeq ("$(shell uname)","Darwin")
     NGRAPH_LDFLAGS_ := \
       -L$(MXNET_LIB_DIR) \
@@ -235,6 +255,7 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
 
     NGRAPH_LDFLAGS_FOR_PROGS_IN_BIN := \
       $(NGRAPH_LDFLAGS_) \
+      $(NGRAPH_SDL_LDFLAGS_) \
       -Wl,-rpath='$${ORIGIN}/../lib' \
       -Wl,--as-needed
 
