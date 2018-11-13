@@ -519,4 +519,40 @@ void Node::printOpDetails(std::ostream& os) {
   }
 }
 
+void Graph::clear_nodes(std::unordered_set<NodePtr>& visited) {
+  GraphVisitor visitor;
+
+  visitor.operation = [&visited](NodePtr node) {
+    visited.insert(node);
+    if (node->type_ == NodeType::kGraph) {
+      std::static_pointer_cast<Graph>(node)->clear_nodes(visited);
+    } else {
+      node->inputs_.clear();
+    }
+  };
+  visitor.stop_condition = [&visited](NodePtr node, NodePtr input) {
+    if (!(visited.count(input))) {
+      return false;
+    }
+    return true;
+  };
+
+  for (auto& node : inputs_) {
+    GraphTraverse(node, visitor);
+  }
+  inputs_.clear();
+  for (auto& node : nodes_) {
+    GraphTraverse(node, visitor);
+  }
+  nodes_.clear();
+  for (auto& node : output_elements_) {
+    GraphTraverse(node, visitor);
+  }
+  output_elements_.clear();
+  for (auto& node : outputs_) {
+    GraphTraverse(node, visitor);
+  }
+  outputs_.clear();
+}
+
 }  // namespace ngraph_bridge

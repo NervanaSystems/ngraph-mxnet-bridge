@@ -46,8 +46,11 @@
 #   USE_NGRAPH
 #   USE_NGRAPH_DISTRIBUTED
 #   USE_NGRAPH_IE
+#   MKLDNN_INCLUDE_DIR
+#   MKLDNN_LIB_DIR
 #   NGRAPH_EXTRA_CMAKE_FLAGS
 #   NGRAPH_EXTRA_MAKE_FLAGS
+#   ROOTDIR
 #   USE_BLAS - One of MXnet's supported BLAS implementations:
 #     "mkl", "blas", "atlas", "openblas", or "apple".
 #   USE_CUDA - "0" or "1"
@@ -58,12 +61,6 @@
 SHELL = /bin/bash
 
 # Check for some configuration problems...
-ifeq ($(USE_NGRAPH), 1)
-  ifeq ($(USE_MKLDNN), 1)
-    $(error "Cannot have both USE_NGRAPH=1 and USE_MKLDNN=1: they require different MKLDNN versions.")
-  endif
-endif
-
 ifneq ($(NGRAPH_DIR),)
   $(warning "WARNING: MXnet's build system ignores the value of NGRAPH_DIR.")
 endif
@@ -75,6 +72,15 @@ ifeq ($(DEBUG), 1)
 	override NGRAPH_EXTRA_CMAKE_FLAGS += -DNGRAPH_DEBUG_ENABLE=TRUE
 endif
 override NGRAPH_EXTRA_CMAKE_FLAGS += -DNGRAPH_UNIT_TEST_ENABLE=0 -DNGRAPH_TOOLS_ENABLE=0
+
+ifneq ($(MKLDNN_INCLUDE_DIR),)
+	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMKLDNN_INCLUDE_DIR=$(MKLDNN_INCLUDE_DIR)
+endif
+
+ifneq ($(MKLDNN_LIB_DIR),)
+	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMKLDNN_LIB_DIR=$(MKLDNN_LIB_DIR)
+endif
+
 NGRAPH_EXTRA_MAKE_FLAGS="VERBOSE=1"
 
 NGRAPH_SRC_DIR := $(ROOTDIR)/3rdparty/ngraph-mxnet-bridge
@@ -107,7 +113,7 @@ ifeq ($(USE_NGRAPH), 1)
 
 .PHONY: ngraph
 all: ngraph
-ngraph:
+ngraph: mkldnn
 	mkdir -p "$(NGRAPH_BUILD_DIR)"
 	@echo
 	@echo ABOUT TO CONFIGURE AND BUILD 3rdparty/ngraph...
