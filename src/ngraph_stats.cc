@@ -54,7 +54,7 @@ void NGraphStats::dump(std::ostream& out) {
           const int pass = static_cast<int>(pass_type);
           std::vector<ngraph::runtime::PerformanceCounter> perf_data =
               backend->get_performance_data(func);
-          for (const runtime::PerformanceCounter& p : perf_data) {
+          for (const auto& p : perf_data) {
             out << std::string(total_column_, '-') << "\n";
             out << "# " + pass_name[pass] << std::endl;
             print_perf_data(out, perf_data);
