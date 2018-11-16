@@ -126,9 +126,9 @@ static size_t get_vector_axis_index(const ngraph::Shape& s) {
 ngraph::Shape get_vector_plus_axes_shape(const size_t rank,
                                          const size_t vector_axis,
                                          const size_t vector_length) {
-  CHECK_GT(rank, 0);
-  CHECK_GT(rank, vector_axis);
-  CHECK_GT(vector_length, 0);
+  check(rank > 0);
+  check(rank > vector_axis);
+  check(vector_length > 0);
 
   ngraph::Shape s(rank, 1);
   s[vector_axis] = vector_length;
@@ -137,7 +137,7 @@ ngraph::Shape get_vector_plus_axes_shape(const size_t rank,
 }
 
 NgraphNodePtr ensure_vector_only_shape(const NgraphNodePtr n) {
-  CHECK(n);
+  check(n != nullptr);
   const ngraph::Shape& n_shape = n->get_shape();
 
   const size_t n_rank = n_shape.size();
@@ -166,12 +166,12 @@ NgraphNodePtr ensure_vector_only_shape(const NgraphNodePtr n) {
 NgraphNodePtr ensure_vector_plus_axes_shape(const NgraphNodePtr n,
                                             const size_t output_rank,
                                             const size_t output_vector_axis) {
-  CHECK(n);
+  check(n != nullptr);
   const ngraph::Shape& n_shape = n->get_shape();
   const size_t n_rank = n_shape.size();
 
-  CHECK(n_rank <= output_rank);
-  CHECK(output_vector_axis < output_rank);
+  check(n_rank <= output_rank);
+  check(output_vector_axis < output_rank);
 
   const size_t n_vector_axis = get_vector_axis_index(n_shape);
   const size_t n_vector_length = n_shape[n_vector_axis];

@@ -91,6 +91,7 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
       graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardInput)], nullptr,
       graph->is_reuse_mem);
 
+  check(req.size() == outputs.size());
   // for outputs we need to comply with req
   TensorVector results;
   if (is_train) {
@@ -113,8 +114,8 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     }
   }
 
-  CHECK_EQ(placeholders.size(), graph->ngraph_forward[mode]->get_parameters().size());
-  CHECK_EQ(results.size(), graph->ngraph_forward[mode]->get_results().size());
+  check(placeholders.size() == graph->ngraph_forward[mode]->get_parameters().size());
+  check(results.size() == graph->ngraph_forward[mode]->get_results().size());
 
   backend->call(graph->ngraph_forward[mode], results, placeholders);
   
@@ -179,14 +180,15 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                                  TShape_to_NShape(graph->outputs_[i]->shape_)));
     }
   }
+  check(req.size() == outputs.size());
   auto results = get_tensors(
       outputs, backend, graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardOutput)],
       graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardOutput)], &req,
       graph->is_reuse_mem);
 
-  CHECK(graph->ngraph_backward[mode]);
-  CHECK_EQ(placeholders.size(), graph->ngraph_backward[mode]->get_parameters().size());
-  CHECK_EQ(results.size(), graph->ngraph_backward[mode]->get_results().size());
+  check(graph->ngraph_backward[mode] != nullptr);
+  check(placeholders.size() == graph->ngraph_backward[mode]->get_parameters().size());
+  check(results.size() == graph->ngraph_backward[mode]->get_results().size());
 
   backend->call(graph->ngraph_backward[mode], results, placeholders);
 

@@ -20,8 +20,8 @@
 
 #include "test_util.h"
 
-#include "../../src/ngraph/ngraph_sgcompiler.h"
-#include "../../src/ngraph/ngraph_sgcompiler_utils.h"
+#include "ngraph_sgcompiler.h"
+#include "ngraph_sgcompiler_utils.h"
 
 namespace ngraph_bridge {
 

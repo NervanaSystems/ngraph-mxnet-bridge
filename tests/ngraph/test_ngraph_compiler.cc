@@ -134,15 +134,4 @@ TEST_F(NGRAPH_COMPILER, CHECK_IN_NGRAPH) {
   }
 }
 
-TEST_F(NGRAPH_COMPILER, COMPILE) {
-  testCompiler test(nnvm_graph, feed_dict, inputs, *bindarg);
-  auto out_graph = test.Compile();
-  const auto& idx = out_graph.indexed_graph();
-  EXPECT_EQ(idx.num_nodes(), inputs.size() + 1);
-  EXPECT_TRUE(out_graph.outputs[0].node->attrs.name.find("subgraph") !=
-              std::string::npos);
-  EXPECT_TRUE(out_graph.outputs[0].node->op()->name.find("subgraph") !=
-              std::string::npos);
-}
-
 }  // namespace ngraph_bridge

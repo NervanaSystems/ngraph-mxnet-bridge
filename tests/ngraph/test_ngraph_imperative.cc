@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "test_ngraph_imperative.h"
-#include "../../src/ngraph/ngraph_nnvm_ops.h"
+#include "ngraph_nnvm_ops.h"
 
 namespace ngraph_bridge {
 

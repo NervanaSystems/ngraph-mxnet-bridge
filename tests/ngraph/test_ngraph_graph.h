@@ -21,7 +21,7 @@
 
 #include "test_util.h"
 
-#include "../../src/ngraph/ngraph_graph.h"
+#include "ngraph_graph.h"
 
 namespace ngraph_bridge {
 

@@ -65,4 +65,8 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 add_subdirectory(src)
 
+set(NGRAPH_BRIDGE_UNIT_TEST_SOURCE "")
+add_subdirectory(tests/ngraph)
+get_directory_property(NGRAPH_BRIDGE_UNIT_TEST_SOURCE DIRECTORY tests/ngraph DEFINITION NGRAPH_BRIDGE_UNIT_TEST_SOURCE) 
+
 add_dependencies(ngraph-mxnet-bridge ext_ngraph)
