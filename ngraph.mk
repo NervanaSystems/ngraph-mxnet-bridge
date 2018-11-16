@@ -196,7 +196,6 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
   ifeq ("$(shell uname)","Darwin")
     NGRAPH_SDL_LDFLAGS_ += -Wl,-bind_at_load
   else
-    NGRAPH_SDL_LDFLAGS_ += -pie
     NGRAPH_SDL_LDFLAGS_ += -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
   endif
   ifneq ("$(CXX)","clang")
@@ -239,6 +238,7 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
       -L$(MXNET_LIB_DIR) \
       -Wl,-rpath-link=$(MXNET_LIB_DIR) \
       $(NGRAPH_COMMON_LIBRARY_LDFLAGS_) \
+      $(NGRAPH_SDL_LDFLAGS_) \
       -lngraph \
       -lcpu_backend
 
@@ -255,9 +255,8 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
 
     NGRAPH_LDFLAGS_FOR_PROGS_IN_BIN := \
       $(NGRAPH_LDFLAGS_) \
-      $(NGRAPH_SDL_LDFLAGS_) \
       -Wl,-rpath='$${ORIGIN}/../lib' \
-      -Wl,--as-needed
+      -Wl,--as-needed -pie
 
     NGRAPH_LDFLAGS_FOR_CPP_UNIT_TESTS_PROG := \
       $(NGRAPH_LDFLAGS_) \
