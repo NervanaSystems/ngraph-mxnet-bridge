@@ -102,6 +102,7 @@ void CompileForward(std::shared_ptr<Graph> sub_graph,
 
   backend->compile(f);
   if (ngraph_log_graph()) {
+    std::cout << "subgraph: " << sub_graph->name_ << " map to " << f->get_name() << std::endl;
     dump_graph(f, __func__, "fprop_compiled");
   }
   sub_graph->ngraph_forward[mode] = f;

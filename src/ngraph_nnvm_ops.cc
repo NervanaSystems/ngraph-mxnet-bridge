@@ -72,6 +72,43 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::NDArray> &inputs,
                      const std::vector<mxnet::OpReqType> &req,
                      const std::vector<mxnet::NDArray> &outputs) {
+#if 1
+  std::cout << "#### FORWARD ####" << std::endl;
+  std::cout << "#### graph " << graph->name_ << std::endl;
+  bool write_full_output = false;
+  for (auto& n : graph->inputs_) {
+    std::cout << "input: " << n->orig_node_->attrs.name << " " << n->shape_ << std::endl;
+    if (n->orig_node_->attrs.name == "fpn_maskroi_pool_fpn_pool_feature0") {
+      write_full_output = true;
+    }
+  }
+  for (auto& n : graph->nodes_) {
+    std::cout << "node: " << n->orig_node_->attrs.name << " " << n->shape_ << std::endl;
+  }
+  for (const auto& in: inputs) {
+    std::cout << "input: " << in.data().Size() << std::endl;
+    if (write_full_output && in.data().Size() == 50176000) {
+       for (size_t i = 0; i < 1000; ++i) {
+         std::cout << "i = " << i << std::endl;
+         for (size_t j = 0; j < 256; ++j) {
+           std::cout << "  j = " << j << ": ";
+//           for (size_t k = 0; k < 196; ++k) {
+           for (size_t k = 0; k < 4; ++k) {
+             std::cout << in.data().dptr<float>()[i*(256*196)+j*196+k] << " ";
+           }
+           std::cout << std::endl;
+         }
+       }
+    }
+//    else {
+//      for (int i = 0; i < std::min(50L, in.data().Size()); ++i) {
+//        std::cout << in.data().dptr<float>()[i] << " ";
+//      }
+//    }
+    std::cout << std::endl;
+  }
+#endif
+
   auto backend = graph->get_backend();
   bool is_train = ctx.is_train;
   if (!graph->need_grad) {
@@ -116,6 +153,37 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   backend->call(graph->ngraph_forward[mode], results, placeholders);
   
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
+
+#if 1
+  for (const auto& out : outputs) {
+    std::cout << "output: " << out.data().Size() << std::endl;
+    size_t out_size = std::min(50L, out.data().Size());
+    if (write_full_output) {
+       out_size = out.data().Size();
+       for (size_t i = 0; i < 1000; ++i) {
+         std::cout << "i = " << i << std::endl;
+         for (size_t j = 0; j < 9; ++j) {
+           std::cout << "  j = " << j << ": ";
+//           for (size_t k = 0; k < 784; ++k) {
+           for (size_t k = 0; k < 4; ++k) {
+             std::cout << out.data().dptr<float>()[i*(9*784)+j*784+k] << " ";
+           }
+           std::cout << std::endl;
+         }
+       }
+    }
+//    else {
+//      for (int i = 0; i < out_size; ++i) {
+//        if (i % 1000 == 0) {
+//          std::cout << std::endl;
+//        }
+//        std::cout << out.data().dptr<float>()[i] << " ";
+//      }
+//    }
+    std::cout << std::endl;
+  }
+#endif
+
 
   if (mode == static_cast<int>(GraphExeMode::kInfer)) {
     for (size_t i = 0; i < placeholders.size(); ++i) {
