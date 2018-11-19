@@ -560,6 +560,7 @@ void Compiler::MakeCopiedInputs(const NNVMNodeVec& inputs) {
 
 void Compiler::CopyNodes(const nnvm::Graph& graph) {
   nnvm::DFSVisit(graph.outputs, [this](const nnvm::NodePtr node) {
+    check(node != nullptr);
     if (!node_map_.count(node.get()))
       node_map_[node.get()] = std::make_shared<nnvm::Node>(*node);
   });
@@ -639,6 +640,7 @@ void Compiler::ParseNnvmGraph(const nnvm::Graph* graph_with_attrs) {
   // Use NNVM's depth first search to trace the tree and construct the
   // intermediary graph
   nnvm::DFSVisit(graph_.outputs, [this, &get_type](const nnvm::NodePtr node) {
+    check(node != nullptr);
     const auto& idx = this->graph_.indexed_graph();
     const auto& mutable_nodes = idx.mutable_input_nodes();
     const uint32_t nid = idx.node_id(node.get());
@@ -685,7 +687,9 @@ void Compiler::ParseNnvmGraph(const nnvm::Graph* graph_with_attrs) {
                 op_node->orig_node_, op_node->name_ + "_" + std::to_string(i),
                 op_node->operation_);
             get_type(tmpop);
-            for (auto input : op_node->inputs_) tmpop->inputs_.push_back(input);
+            for (auto input : op_node->inputs_) {
+              tmpop->inputs_.push_back(input);
+            }
             tmpop->multi_output_index_ = i;
 
             this->ngraph_.AddNode(tmpop);

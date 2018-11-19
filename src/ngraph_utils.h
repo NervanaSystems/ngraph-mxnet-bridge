@@ -57,6 +57,15 @@ inline bool ngraph_log_timer() {
 }
 extern const bool ngraph_log_verbose_detail;
 
+inline void check(bool good) {
+  if (!good) {
+    throw std::runtime_error(
+        std::string("NGRAPH_BRIDGE: Ran into an error at ") +
+        std::to_string(__LINE__) + std::string(" in file ") +
+        std::string(__FILE__));
+  }
+}
+
 // simple timer for sequential blocks of code
 class Timer {
  public:

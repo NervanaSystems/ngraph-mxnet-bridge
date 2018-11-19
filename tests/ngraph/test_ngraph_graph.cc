@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include "test_ngraph_graph.h"
-#include "../../src/ngraph/ngraph_graph_utils.h"
-#include "../../src/ngraph/ngraph_utils.h"
+#include "ngraph_graph_utils.h"
+#include "ngraph_utils.h"
 
 namespace ngraph_bridge {
 
@@ -111,16 +111,6 @@ TEST_F(NGRAPH_GRAPH, GRAPH_FIND_SUBGRAPH) {
             8ul);
   EXPECT_EQ(FindSubgraph(complex_graph, complex_graph.nodes_[25], isop).size(),
             6ul);
-}
-
-TEST_F(NGRAPH_GRAPH, GRAPH_COLLAPSE_SUBGRAPHS) {
-  IdentifySubgraphs(&branching_graph, isop);
-  auto size = branching_graph.nodes_.size();
-  EXPECT_EQ(size, 7ul);
-  auto subgraph =
-      std::dynamic_pointer_cast<Graph>(branching_graph.nodes_[size - 2]);
-  EXPECT_NE(subgraph, nullptr);
-  EXPECT_EQ(subgraph->nodes_.size(), 3ul);
 }
 
 TEST_F(NGRAPH_GRAPH, GRAPH_COLLAPSE_MULTIOUTPUT) {

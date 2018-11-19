@@ -405,7 +405,7 @@ void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
     return;
   }
 
-  CHECK(exe_mode_ == GraphExeMode::kInfer);
+  check(exe_mode_ == GraphExeMode::kInfer);
   // No need to compile the backprop function if we're running in inference
   // mode.
   CompileForward(sub_graph, f, exe_mode_);
