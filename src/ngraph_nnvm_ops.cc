@@ -72,7 +72,7 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::NDArray> &inputs,
                      const std::vector<mxnet::OpReqType> &req,
                      const std::vector<mxnet::NDArray> &outputs) {
-#if 1
+#if 0
   std::cout << "#### FORWARD ####" << std::endl;
   std::cout << "#### graph " << graph->name_ << std::endl;
   bool write_full_output = false;
@@ -154,7 +154,7 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
 
-#if 1
+#if 0
   for (const auto& out : outputs) {
     std::cout << "output: " << out.data().Size() << std::endl;
     size_t out_size = std::min(50L, out.data().Size());
