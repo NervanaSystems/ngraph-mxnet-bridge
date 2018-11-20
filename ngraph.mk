@@ -211,7 +211,9 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
   else
     NGRAPH_SDL_LDFLAGS_ += -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now
   endif
-  ifneq ("$(CXX)","clang")
+  ifeq ("$(CXX)","clang")
+    NGRAPH_CFLAGS += -fstack-protector-strong
+  else
     MIN_VERSION := "4.9"
     CXX_VERSION := "`$(CXX) -dumpversion`"
     IS_VERSION_LESS := $(shell expr "$(CXX_VERSION)" "<" "$(MIN_VERSION)")

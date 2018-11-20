@@ -38,6 +38,8 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
     endif()
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
 endif()
 
 set(CMAKE_CXX_STANDARD 11)
