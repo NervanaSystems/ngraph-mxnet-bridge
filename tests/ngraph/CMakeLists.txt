@@ -14,18 +14,6 @@
 # limitations under the License.
 #*******************************************************************************
 
-# Add compiler/linker flags required by clients of mshadow...
-get_filename_component(
-    MXNET_PROJECT_SOURCE_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
-    ABSOLUTE)
-# This is needed for OS X. However, it causes blas problems on CentOS: cmake
-# complains about not finding Atlas, even though Atlas is already installed.
-if(APPLE)
-    include("${MXNET_PROJECT_SOURCE_DIR}/cmake/ChooseBlas.cmake")
-endif()
-
-
 set(NGRAPH_BRIDGE_UNIT_TEST_SOURCE
     ${CMAKE_CURRENT_SOURCE_DIR}/test_ngraph_compiler.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/test_ngraph_graph.cc
@@ -36,19 +24,3 @@ set(NGRAPH_BRIDGE_UNIT_TEST_SOURCE
     ${CMAKE_CURRENT_SOURCE_DIR}/test_ngraph_utils.cc
     )
 
-if(USE_CUDA)
-    find_package(CUDA REQUIRED)
-    add_definitions(-DMSHADOW_USE_CUDA=1)
-else()
-    add_definitions(-DMSHADOW_USE_CUDA=0)
-endif()
-if (BLAS STREQUAL "MKL" OR BLAS STREQUAL "mkl")
-    add_definitions(-DMSHADOW_USE_MKL=1)
-    add_definitions(-DMSHADOW_USE_CBLAS=0)
-else()
-    add_definitions(-DMSHADOW_USE_MKL=0)
-    add_definitions(-DMSHADOW_USE_CBLAS=1)
-endif()
-
-
-add_definitions(-DMXNET_USE_NGRAPH=1)
