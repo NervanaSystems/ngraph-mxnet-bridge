@@ -1518,7 +1518,7 @@ void Emitter::CreateLayerOps() {
       }
     }
 
-    CHECK(false && "UNEXPECTED: Unhandled BatchNorm mode.");
+    check(false && "UNEXPECTED: Unhandled BatchNorm mode.");
     return {};
   };
 

@@ -57,6 +57,19 @@ inline bool ngraph_log_timer() {
 }
 extern const bool ngraph_log_verbose_detail;
 
+// Add an inline function to throw a standard runtime error
+// we do this because the MXNet CHECK family of Macros intermittently
+// returns SIGSEGV or SIGABRT instead of actdually throwing an
+// error, and we need negative test cases, thus we sidstep the Macros
+inline void check(bool good) {
+  if (!good) {
+    throw std::runtime_error(
+        std::string("NGRAPH_BRIDGE: Ran into an error at ") +
+        std::to_string(__LINE__) + std::string(" in file ") +
+        std::string(__FILE__));
+  }
+}
+
 // simple timer for sequential blocks of code
 class Timer {
  public:
