@@ -61,6 +61,7 @@ void NGraphStats::dump(std::ostream& out) {
             print_perf_data(out, perf_data);
             pass_perf[pass].insert(pass_perf[pass].end(), perf_data.begin(),
                                    perf_data.end());
+            if (p.name() == "") out << p.name();
             break;
           }
         };
