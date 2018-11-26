@@ -30,6 +30,7 @@
 #include <ngraph/pass/manager.hpp>
 #include <ngraph/pass/reshape_elimination.hpp>
 #include <ngraph/runtime/cpu/pass/cpu_fusion.hpp>
+#include <ngraph/runtime/cpu/pass/cpu_workspace_insertion.hpp>
 #include <ngraph/serializer.hpp>
 
 #include "ngraph_sgcompiler_utils.h"
@@ -187,6 +188,7 @@ void OptimizeGraph(std::shared_ptr<Graph> sub_graph,
 #ifndef MXNET_USE_NGRAPH_IE
   if (sub_graph->context_ == mxnet::Context::CPU() &&
       exe_mode == GraphExeMode::kTrain) {
+
     // if we're in CPU, combine the graphs
     ngraph::NodeVector dYdXs;
     for (size_t i = 0; i < bf->get_output_size(); ++i) {
@@ -212,9 +214,22 @@ void OptimizeGraph(std::shared_ptr<Graph> sub_graph,
     // rerun Reshape elimination to help simplify the graph again, run CPUFusion
     // this replaces nodes in both f and bf due to shared-ptr - ness
     ngraph::pass::Manager pass_manager;
+    ngraph::NodeVector node_vector;
     pass_manager.register_pass<ngraph::pass::ReshapeElimination>();
     pass_manager.register_pass<ngraph::runtime::cpu::pass::CPUFusion>();
+    pass_manager.register_pass<ngraph::runtime::cpu::pass::CPUWorkspaceInsertion>(node_vector);
     pass_manager.run_passes(combinedf);
+
+    if (node_vector.size() > 0) {
+      ngraph::NodeVector new_outputs;
+      for (auto r : f->get_results()) {
+        new_outputs.push_back(r->get_argument(0));
+      }
+
+      new_outputs.insert(new_outputs.end(), node_vector.begin(),
+                         node_vector.end());
+      f = std::make_shared<ngraph::Function>(new_outputs, f->get_parameters());
+    }
   }
 #endif
 }
