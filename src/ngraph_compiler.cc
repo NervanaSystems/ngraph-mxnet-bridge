@@ -35,6 +35,8 @@ namespace ngraph_bridge {
 
 // TODO(mbrookhart): remove when DEX becomes default
 static int ngraph_dex = setenv("NGRAPH_DEX", "1", true);
+// TODO: remove when ngraph fixes CF issue
+static int ngraph_pass = setenv("NGRAPH_PASS_ENABLES", "ConstantFolding", true);
 
 // Function to create an nnvm node from a ngraph subgraph
 nnvm::NodePtr CreateNNVMNode(std::shared_ptr<Graph> subgraph) {
@@ -165,7 +167,7 @@ Compiler::Compiler(const nnvm::Graph& g,
   MakeCopiedInputs(s.ListInputs(nnvm::Symbol::kReadOnlyArgs));
   ParseNnvmGraph(&g);
   CheckInNgraph();
-  ngraph_.need_grad= false;
+  ngraph_.need_grad = false;
   for (auto req : grad_req_types) {
     if (req != kNullOp) {
       ngraph_.need_grad = true;
@@ -173,7 +175,8 @@ Compiler::Compiler(const nnvm::Graph& g,
     }
   }
   // TODO(mbrookhart): Some unit tests only have one data input, don't want to
-  // bprop to that data, but still test backward. I'm not sure I understand the test
+  // bprop to that data, but still test backward. I'm not sure I understand the
+  // test
   // but this is a workaround. Try to find a cleaner solution.
   if (grad_req_types.size() < 2) {
     ngraph_.need_grad = true;
@@ -209,7 +212,6 @@ Compiler::Compiler(const nnvm::Graph& graph, const NDArrayMap& feed_dict,
   MakeCopiedInputs(inputs);
   ProcessGraph(feed_dict);
 }
-
 
 void Compiler::ReshapeGraph(const nnvm::ShapeVector& new_shapes) {
   std::unordered_set<NodePtr> visited;
@@ -442,7 +444,6 @@ void Compiler::CleanUpUneededReferences() {
     kv.first->nodes_.clear();
     kv.first->entry_map_.clear();
   }
-
 }
 
 // assumes there is only one ngraph
