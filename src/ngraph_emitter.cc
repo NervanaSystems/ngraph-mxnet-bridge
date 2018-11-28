@@ -25,9 +25,11 @@
 #include <utility>
 #include <vector>
 
+#include <ngraph/builder/quantization.hpp>
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
 #include "../../../src/operator/nn/upsampling-inl.h"
+#include "../../../src/operator/quantization/quantize-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
@@ -1421,8 +1423,9 @@ void Emitter::CreateLayerOps() {
       NgraphNodePtr ng_batch_var;
 
       if (ngraph_bn_op_available) {
-        const NgraphNodePtr BN = std::make_shared<ngraph::op::BatchNormTraining>(
-            eps, ng_actual_gamma, ng_in_beta, ng_in_data);
+        const NgraphNodePtr BN =
+            std::make_shared<ngraph::op::BatchNormTraining>(
+                eps, ng_actual_gamma, ng_in_beta, ng_in_data);
         ng_normalized_data =
             std::make_shared<ngraph::op::GetOutputElement>(BN, 0);
         ng_batch_mean = std::make_shared<ngraph::op::GetOutputElement>(BN, 1);
@@ -1815,6 +1818,31 @@ void Emitter::CreateLayerOps() {
   ngraph_op_funcs_["LinearRegressionOutput"] = [this](const NodePtr& node) {
     return op_map_[node->inputs_[0]];
   };
+  ngraph_op_funcs_["_contrib_quantize"] = [this](const NodePtr& node) {
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    const auto& param =
+        nnvm::get<mxnet::op::QuantizeParam>(node->orig_node_->attrs.parsed);
+    auto data = op_map_[node->inputs_[0]];
+    auto arg1p = op_map_[node->inputs_[1]];
+    auto arg2p = op_map_[node->inputs_[2]];
+    auto min = std::make_shared<ngraph::op::Reshape>(
+        op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{});
+    auto max = std::make_shared<ngraph::op::Reshape>(
+        op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
+    const ngraph::AxisSet quantization_axes;
+    auto round_mode =
+        ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
+
+    auto op = ngraph::builder::ScaledQuantize(
+        data, min, max, getType(param.out_type), quantization_axes, round_mode);
+
+    multi_output_map_[node] = {op, arg1p, arg2p};
+
+    return op;
+  };
 }
 
 void Emitter::CreateLossOps() {
@@ -2002,8 +2030,8 @@ void Emitter::UnsupportedOps() {
   supported_ops["Pooling"] = [](const NodePtr& node) {
     auto pool_type = get_default(node, "pool_type", std::string("max"));
     std::vector<std::string> supported{"max", "sum", "avg"};
-    if (std::find(supported.begin(), supported.end(),
-        pool_type) == supported.end()) {
+    if (std::find(supported.begin(), supported.end(), pool_type) ==
+        supported.end()) {
       return false;
     }
     return true;
