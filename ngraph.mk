@@ -43,6 +43,7 @@
 #     target does nothing and is trivially satisfied.
 #
 # Input variables:
+#   CPU_TARGET_ARCH
 #   USE_NGRAPH
 #   USE_NGRAPH_DISTRIBUTED
 #   USE_NGRAPH_IE
@@ -111,6 +112,14 @@ ngraph_clean:
 
 ifeq ($(USE_NGRAPH), 1)
 
+$(info "CPU_TARGET_ARCH = '$(CPU_TARGET_ARCH)'")
+
+ifneq ($(CPU_TARGET_ARCH),)
+	NGRAPH_ARCH_CMAKE_FLAGS := -DNGRAPH_TARGET_ARCH=$(CPU_TARGET_ARCH)
+else
+	NGRAPH_ARCH_CMAKE_FLAGS :=
+endif
+
 .PHONY: ngraph
 all: ngraph
 ngraph: mkldnn
@@ -118,7 +127,6 @@ ngraph: mkldnn
 	@echo
 	@echo ABOUT TO CONFIGURE AND BUILD 3rdparty/ngraph...
 	@echo
-
 	@# All of the following commands must run in the same subshell, because we want the 'cd'
 	@# directory to be in effect for all of them.  Thus our use of ';' ...
 	@if echo "$(NGRAPH_EXTRA_CMAKE_FLAGS)" | grep -q -e '-DCMAKE_INSTALL_PREFIX='; then \
@@ -137,7 +145,8 @@ ngraph: mkldnn
 	  "-DUSE_NGRAPH_DISTRIBUTED=$(USE_NGRAPH_DISTRIBUTED)" \
 	  "-DUSE_NGRAPH_GPU=$(USE_NGRAPH_GPU)" \
           "-DCUDA_INCLUDE_DIRS=$(USE_CUDA_PATH)/include" \
-	  "-DNGRAPH_EXTRA_CMAKE_FLAGS='$(NGRAPH_EXTRA_CMAKE_FLAGS)'" \
+	  "-DNGRAPH_EXTRA_CMAKE_FLAGS=$(NGRAPH_EXTRA_CMAKE_FLAGS)" \
+	  $(NGRAPH_ARCH_CMAKE_FLAGS) \
 	  $(NGRAPH_EXTRA_CMAKE_FLAGS); \
 	  $(MAKE) all ngraph-mxnet-bridge $(NGRAPH_EXTRA_MAKE_FLAGS)
 
