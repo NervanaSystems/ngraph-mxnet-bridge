@@ -233,7 +233,7 @@ std::shared_ptr<Graph> SGCompiler::Compile(NodePtr sub_graph) {
 
 std::shared_ptr<ngraph::Function> SGCompiler::MakeForwardFunction(
     std::shared_ptr<Graph> sub_graph) {
-  ngraph::op::ParameterVector parameters;
+  ngraph::ParameterVector parameters;
 
   for (const auto input : placeholder_order_) {
     // get the parameters
