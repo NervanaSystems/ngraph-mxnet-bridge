@@ -42,7 +42,6 @@ declare -a EXPECTED_LIBS=(
     "libngraph.dylib"
     "libngraph_test_util.dylib"
     "libtbb.dylib"
-    "libtbb_debug.dylib"
     )
 
 #-------------------------------------------------------------------------------
