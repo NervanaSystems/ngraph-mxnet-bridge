@@ -176,7 +176,7 @@ inline std::string get_backend_name(const mxnet::Context &context) {
 #ifdef MXNET_USE_NGRAPH_INTERPRETER
     return "INTERPRETER";
 #endif
-    return "CPU";
+    return dmlc::GetEnv("MXNET_NGRAPH_BACKEND", std::string("CPU"));
 #if MXNET_USE_CUDA
   } else if (context.dev_type == mxnet::Context::GPU().dev_type) {
     return "GPU";
