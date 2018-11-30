@@ -41,10 +41,6 @@ inline bool ngraph_gluon_enable() {
 inline bool ngraph_distributed_enable() {
   return dmlc::GetEnv("MXNET_NGRAPH_DISTRIBUTED", false);
 }
-// use env to set ngraph backend
-inline std::string ngraph_backend_env() {
-  return dmlc::GetEnv("MXNET_NGRAPH_BACKEND", std::string("CPU"));
-}
 
 // logging
 inline bool ngraph_log_verbose() {
