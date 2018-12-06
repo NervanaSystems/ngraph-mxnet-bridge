@@ -56,9 +56,10 @@ enum class NodeReferences {
 };
 
 constexpr int kGraphExeModeCount = static_cast<int>(GraphExeMode::kTrain) -
-                                     static_cast<int>(GraphExeMode::kInfer) + 1;
-constexpr int kNodeReferencesCount = static_cast<int>(NodeReferences::kBackwardOutput) -
-                                     static_cast<int>(NodeReferences::kForwardInput) + 1;
+                                   static_cast<int>(GraphExeMode::kInfer) + 1;
+constexpr int kNodeReferencesCount =
+    static_cast<int>(NodeReferences::kBackwardOutput) -
+    static_cast<int>(NodeReferences::kForwardInput) + 1;
 
 // Base class for Nodes in Intermediary Analysis Graph
 class Node {
@@ -171,9 +172,11 @@ inline std::string get_backend_name(const mxnet::Context &context) {
   if (context.dev_type == mxnet::Context::CPU().dev_type) {
 #ifdef MXNET_USE_NGRAPH_IE
     return "IE";
-#else
-    return "CPU";
 #endif
+#ifdef MXNET_USE_NGRAPH_INTERPRETER
+    return "INTERPRETER";
+#endif
+    return dmlc::GetEnv("MXNET_NGRAPH_BACKEND", std::string("CPU"));
 #if MXNET_USE_CUDA
   } else if (context.dev_type == mxnet::Context::GPU().dev_type) {
     return "GPU";
@@ -273,9 +276,10 @@ class Graph : public Node {
     return backend;
   }
 
-  const ngraph::ResultVector& get_results() {
+  const ngraph::ResultVector &get_results() {
     if (!need_grad) {
-      return ngraph_forward[static_cast<int>(GraphExeMode::kInfer)]->get_results();
+      return ngraph_forward[static_cast<int>(GraphExeMode::kInfer)]
+          ->get_results();
     } else {
       return fprop_cache->fprop->get_results();
     }
