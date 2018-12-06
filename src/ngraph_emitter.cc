@@ -1826,20 +1826,19 @@ void Emitter::CreateLayerOps() {
     const auto& param =
         nnvm::get<mxnet::op::QuantizeParam>(node->orig_node_->attrs.parsed);
     auto data = op_map_[node->inputs_[0]];
-    auto arg1p = op_map_[node->inputs_[1]];
-    auto arg2p = op_map_[node->inputs_[2]];
+    auto arg1 = op_map_[node->inputs_[1]];
+    auto arg2 = op_map_[node->inputs_[2]];
     auto min = std::make_shared<ngraph::op::Reshape>(
-        op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{});
+        arg1, ngraph::AxisVector{0}, ngraph::Shape{});
     auto max = std::make_shared<ngraph::op::Reshape>(
-        op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
-    const ngraph::AxisSet quantization_axes;
+        arg2, ngraph::AxisVector{0}, ngraph::Shape{});
     auto round_mode =
         ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
 
     auto op = ngraph::builder::ScaledQuantize(
-        data, min, max, getType(param.out_type), quantization_axes, round_mode);
+        data, min, max, getType(param.out_type), ngraph::AxisSet{}, round_mode);
 
-    multi_output_map_[node] = {op, arg1p, arg2p};
+    multi_output_map_[node] = {op, arg1, arg2};
 
     return op;
   };
