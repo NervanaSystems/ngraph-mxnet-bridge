@@ -29,6 +29,7 @@
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
 #include "../../../src/operator/nn/upsampling-inl.h"
+#include "../../../src/operator/quantization/dequantize-inl.h"
 #include "../../../src/operator/quantization/quantize-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
@@ -1840,6 +1841,19 @@ void Emitter::CreateLayerOps() {
 
     multi_output_map_[node] = {op, arg1, arg2};
 
+    return op;
+  };
+  ngraph_op_funcs_["_contrib_dequantize"] = [this](const NodePtr& node) {
+    const auto& param =
+        nnvm::get<mxnet::op::DequantizeParam>(node->orig_node_->attrs.parsed);
+    auto data = op_map_[node->inputs_[0]];
+    auto min = std::make_shared<ngraph::op::Reshape>(
+        op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{});
+    auto max = std::make_shared<ngraph::op::Reshape>(
+        op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
+
+    auto op = ngraph::builder::ScaledDequantize(
+        data, min, max, getType(param.out_type), ngraph::AxisSet{});
     return op;
   };
 }
