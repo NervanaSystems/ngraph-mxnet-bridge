@@ -32,23 +32,24 @@
 #include <ngraph/runtime/cpu/pass/cpu_fusion.hpp>
 #include <ngraph/serializer.hpp>
 
+#include "ngraph_graph.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ngraph_utils.h"
 
 namespace ngraph_bridge {
 
 template <typename T>
-std::vector<bool> is_bool(const T& nodes) {
+std::vector<bool> is_bool(const T &nodes) {
   std::vector<bool> bools;
-  for (const auto& node : nodes) {
+  for (const auto &node : nodes) {
     bools.push_back(node->get_element_type() == ngraph::element::boolean);
   }
   return bools;
 }
 template <typename T>
-std::vector<bool> is_scalar(const T& nodes) {
+std::vector<bool> is_scalar(const T &nodes) {
   std::vector<bool> bools;
-  for (const auto& node : nodes) {
+  for (const auto &node : nodes) {
     bools.push_back(node->get_shape().size() == 0);
   }
   return bools;
@@ -66,7 +67,7 @@ void set_bool_and_scalar(std::shared_ptr<Graph> sub_graph,
 }
 
 void set_bool_and_scalar(std::shared_ptr<Graph> sub_graph,
-                         std::shared_ptr<ngraph::Function>f ,
+                         std::shared_ptr<ngraph::Function> f,
                          GraphExeMode exe_mode, bool is_forward) {
   NodeReferences input_type;
   NodeReferences output_type;
@@ -167,7 +168,7 @@ void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
   }
   sub_graph->ngraph_forward[mode] = f_copy;
   sub_graph->ngraph_backward[mode] = bf_copy;
-  
+
   set_bool_and_scalar(sub_graph, f_copy, exe_mode, true);
   set_bool_and_scalar(sub_graph, bf_copy, exe_mode, false);
 }
@@ -185,7 +186,7 @@ void OptimizeGraph(std::shared_ptr<Graph> sub_graph,
   pass_manager.run_passes(bf);
 
 #ifndef MXNET_USE_NGRAPH_IE
-  if (sub_graph->context_ == mxnet::Context::CPU() &&
+  if (get_backend_name(sub_graph->context_) == "CPU" &&
       exe_mode == GraphExeMode::kTrain) {
     // if we're in CPU, combine the graphs
     ngraph::NodeVector dYdXs;
@@ -275,7 +276,7 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeForwardFunction(
 
 // fuse conv + bias before autodiff
 #ifndef MXNET_USE_NGRAPH_IE
-  if (sub_graph->context_ == mxnet::Context::CPU() &&
+  if (get_backend_name(sub_graph->context_) == "CPU" &&
       exe_mode_ == GraphExeMode::kTrain) {
     ngraph::pass::Manager pass_manager;
     pass_manager.register_pass<ngraph::runtime::cpu::pass::CPUFusion>(
