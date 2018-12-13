@@ -1426,7 +1426,7 @@ void Emitter::CreateLayerOps() {
       if (ngraph_bn_op_available) {
         const NgraphNodePtr BN =
             std::make_shared<ngraph::op::BatchNormTraining>(
-                eps, ng_actual_gamma, ng_in_beta, ng_in_data);
+                ng_in_data, ng_actual_gamma, ng_in_beta, eps);
         ng_normalized_data =
             std::make_shared<ngraph::op::GetOutputElement>(BN, 0);
         ng_batch_mean = std::make_shared<ngraph::op::GetOutputElement>(BN, 1);
@@ -1504,8 +1504,8 @@ void Emitter::CreateLayerOps() {
       if (ngraph_bn_op_available) {
         const NgraphNodePtr ng_normalized_data =
             std::make_shared<ngraph::op::BatchNormInference>(
-                eps, ng_actual_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
-                ng_in_moving_var);
+                ng_in_data, ng_actual_gamma, ng_in_beta, ng_in_moving_mean,
+                ng_in_moving_var, eps);
 
         multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
                                    ng_in_moving_var};
