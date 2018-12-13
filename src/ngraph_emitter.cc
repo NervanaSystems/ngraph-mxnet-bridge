@@ -1739,7 +1739,6 @@ void Emitter::CreateLayerOps() {
                                      &asymetric_padding](const NodePtr& node) {
     auto input = op_map_[node->inputs_[0]];
     auto params = PoolingParams(node, input);
-
     return std::make_shared<ngraph::op::MaxPool>(
         input, params.kernel, params.stride, params.pad,
         asymetric_padding(input->get_shape(), params));
@@ -1854,6 +1853,38 @@ void Emitter::CreateLayerOps() {
 
     auto op = ngraph::builder::ScaledDequantize(
         data, min, max, getType(param.out_type), ngraph::AxisSet{});
+    return op;
+  };
+  ngraph_op_funcs_["_contrib_quantized_pooling"] = [this, &asymetric_padding](
+      const NodePtr& node) {
+    NgraphNodePtr op;
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    auto input = op_map_[node->inputs_[0]];
+    auto params = PoolingParams(node, input);
+    auto arg1 = op_map_[node->inputs_[1]];
+    auto arg2 = op_map_[node->inputs_[2]];
+    auto min = std::make_shared<ngraph::op::Reshape>(
+        arg1, ngraph::AxisVector{0}, ngraph::Shape{});
+    auto max = std::make_shared<ngraph::op::Reshape>(
+        arg2, ngraph::AxisVector{0}, ngraph::Shape{});
+    auto type = get_default(node, "pool_type", std::string("max"));
+    auto apad = asymetric_padding(input->get_shape(), params);
+    if (type == "max") {
+      op = ngraph::builder::ScaledQuantizedMaxPool(
+          input, params.kernel, params.stride, params.pad, apad, min, max);
+    } else if (type == "avg") {
+      op = ngraph::builder::ScaledQuantizedAvgPool(input, params.kernel,
+                                                   params.stride, params.pad,
+                                                   apad, false, min, max);
+    } else {
+      throw std::runtime_error(
+          "NGRAPH_BRIDGE: Quantized Pooling unsupported type: " + type);
+    }
+    multi_output_map_[node] = {op, arg1, arg2};
+
     return op;
   };
 }
