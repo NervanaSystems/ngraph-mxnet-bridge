@@ -222,8 +222,8 @@ class Graph : public Node {
         context_(context),
         enable_fprop_cache(enable_fprop_cache) {
     fprop_cache = std::make_shared<ngraph::FpropCache>();
-    // is_reuse_mem = context.dev_type != mxnet::Context::kNNP;
-    is_reuse_mem = true;
+    is_reuse_mem = (get_backend_name(context).find("CPU") == 0) ||
+                   (get_backend_name(context).find("GPU") == 0);
   }
 
   ~Graph() override {
