@@ -1702,6 +1702,11 @@ void Emitter::CreateLayerOps() {
   };
 
   ngraph_op_funcs_["Pooling"] = [this](const NodePtr& node) -> NgraphNodePtr {
+    auto num_outputs = node->orig_node_->num_outputs();
+    if (num_outputs > 1 && node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
     NgraphNodePtr op;
     std::string type = get_default(node, "pool_type", std::string("max"));
     if (type == "max") {
@@ -1710,6 +1715,9 @@ void Emitter::CreateLayerOps() {
       op = ngraph_op_funcs_["avg_pooling"](node);
     } else if (type == "sum") {
       op = ngraph_op_funcs_["sum_pooling"](node);
+    }
+    if (num_outputs > 1) {
+      multi_output_map_[node] = {op, makeConstant(node, "0")};
     }
     return op;
   };
