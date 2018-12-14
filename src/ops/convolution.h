@@ -22,8 +22,10 @@
 
 namespace ngraph_bridge {
 NgraphNodePtr create_convolution(Emitter* emitter, const NodePtr& node);
+#if MXNET_USE_MKLDNN == 1
 NgraphNodePtr create_quantized_convolution(Emitter* emitter,
                                            const NodePtr& node);
+#endif
 }  // namespace ngraph_bridge
 
 #endif  // MXNET_NGRAPH_OPS_CONVOLUTION_H_
