@@ -38,6 +38,7 @@ set(SRC
     ngraph_utils.cc
     ops/batchnorm.cc
     ops/deconvolution.cc
+    ops/convolution.cc
     ops/slice.cc
     )
 

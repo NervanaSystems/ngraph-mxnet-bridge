@@ -34,6 +34,7 @@
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
+#include "ops/convolution.h"
 #include "ops/deconvolution.h"
 #include "ops/slice.h"
 
@@ -1528,68 +1529,11 @@ void Emitter::CreateLayerOps() {
 
   ngraph_op_funcs_["Convolution"] =
       [this](const NodePtr& node) -> NgraphNodePtr {
-    enum InputName { kData = 0, kWeight, kBias };
-
-    NgraphNodePtr data = op_map_[node->inputs_[kData]];
-    NgraphNodePtr filter = op_map_[node->inputs_[kWeight]];
-
-    // N, channel_in, d1,...,dn
-    const auto data_shape = data->get_shape();
-    // channel_out, channel_in/groups, f1,...,fn
-    const auto filter_shape = filter->get_shape();
-
-    auto n = data_shape.size() - 2;
-    ngraph::CoordinateDiff default_pad(n, 0);
-    ngraph::Strides default_stride(n, 1);
-    ngraph::Strides default_dilate(n, 1);
-
-    auto pad = get_default<ptrdiff_t>(node, "pad", default_pad);
-    auto stride = get_default<size_t>(node, "stride", default_stride);
-    auto dilate = get_default<size_t>(node, "dilate", default_dilate);
-    size_t groups = get_default(node, "num_group", 1);
-
-    NgraphNodePtr convolution = nullptr;
-    if (groups == 1) {
-      convolution = std::make_shared<ngraph::op::Convolution>(
-          data, filter, stride, dilate, pad, pad);
-    } else {
-      std::vector<NgraphNodePtr> convolutions(groups);
-      for (size_t g = 0; g < groups; ++g) {
-        // slice data on channel_in
-        size_t data_slice_step = data_shape[1] / groups;
-        size_t filter_slice_step = filter_shape[0] / groups;
-        auto data_slice = slice_data_on_axis(data, g * data_slice_step,
-                                             data_slice_step, 1, false);
-        auto filter_slice = slice_data_on_axis(filter, g * filter_slice_step,
-                                               filter_slice_step, 0, false);
-        // convolve sliced data and filter
-        // N, channel_out/groups, d'1,...,d'n
-        convolutions[g] = std::make_shared<ngraph::op::Convolution>(
-            data_slice, filter_slice, stride, dilate, pad, pad);
-      }
-
-      // concatenate convolutions on channel_out
-      // N, channel_out, d'1,...,d'n
-      convolution = std::make_shared<ngraph::op::Concat>(convolutions, 1);
-    }
-
-    // no bias param, return
-    if (node->inputs_.size() <= kBias) {
-      return convolution;
-    }
-
-    NgraphNodePtr bias = op_map_[node->inputs_[kBias]];
-
-    // 1, channel_out, 1,...,1
-    ngraph::Shape bias_shape(filter_shape.size(), 1);
-    bias_shape[1] = filter_shape[0];
-
-    ngraph::AxisVector order(1, 0);
-    auto bias_reshape =
-        std::make_shared<ngraph::op::Reshape>(bias, order, bias_shape);
-
-    return ngraph::builder::make_with_numpy_broadcast<ngraph::op::Add>(
-        convolution, bias_reshape);
+    return create_convolution(this, node);
+  };
+  ngraph_op_funcs_["_sg_mkldnn_conv"] =
+      [this](const NodePtr& node) -> NgraphNodePtr {
+    return create_quantized_convolution(this, node);
   };
   ngraph_op_funcs_["Deconvolution"] =
       [this](const NodePtr& node) -> NgraphNodePtr {

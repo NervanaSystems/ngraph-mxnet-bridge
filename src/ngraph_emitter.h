@@ -58,7 +58,6 @@ class Emitter {
       const std::function<NgraphNodePtr(const NgraphNodePtr&,
                                         const ngraph::AxisSet&)>& func);
 
- protected:
   NgraphNodePtr ReduceAxes(
       const NodePtr& node,
       const std::function<NgraphNodePtr(const NgraphNodePtr&,
