@@ -25,6 +25,10 @@
 #include "../ngraph_sgcompiler_utils.h"
 #include "../ngraph_utils.h"
 
+#if MXNET_USE_MKLDNN == 1
+#include "../../../../operator/subgraph/mkldnn/mkldnn_conv-inl.h
+#endif
+
 namespace ngraph_bridge {
 
 struct ConvInputs {
@@ -105,6 +109,7 @@ NgraphNodePtr create_convolution(Emitter* emitter, const NodePtr& node) {
       convolution, bias_reshape);
 }
 
+#if MXNET_USE_MKLDNN == 1
 NgraphNodePtr create_quantized_convolution(Emitter* emitter,
                                            const NodePtr& node) {
   const auto& param_ = nnvm::get<mxnet::op::MKLDNNConvFusionParam>(
@@ -144,4 +149,5 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
       data_n, data_m, filter_n, filter_m, min, max);
   return conv;
 }
+#endif
 }

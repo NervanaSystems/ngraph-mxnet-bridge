@@ -1531,10 +1531,12 @@ void Emitter::CreateLayerOps() {
       [this](const NodePtr& node) -> NgraphNodePtr {
     return create_convolution(this, node);
   };
+#if MXNET_USE_MKLDNN == 1
   ngraph_op_funcs_["_sg_mkldnn_conv"] =
       [this](const NodePtr& node) -> NgraphNodePtr {
     return create_quantized_convolution(this, node);
   };
+#endif
   ngraph_op_funcs_["Deconvolution"] =
       [this](const NodePtr& node) -> NgraphNodePtr {
     NgraphNodePtr data = op_map_[node->inputs_[0]];
