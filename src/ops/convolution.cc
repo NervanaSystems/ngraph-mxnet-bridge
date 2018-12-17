@@ -26,7 +26,7 @@
 #include "../ngraph_utils.h"
 
 #if MXNET_USE_MKLDNN == 1
-#include "../../../../operator/subgraph/mkldnn/mkldnn_conv-inl.h"
+#include "../../../../src/operator/subgraph/mkldnn/mkldnn_conv-inl.h"
 #endif
 
 namespace ngraph_bridge {

@@ -74,6 +74,7 @@ endif
 override NGRAPH_EXTRA_CMAKE_FLAGS += -DNGRAPH_UNIT_TEST_ENABLE=0 -DNGRAPH_TOOLS_ENABLE=0
 
 ifeq ($(USE_MKLDNN), 1)
+	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMXNET_USE_MKLDNN=1
 	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMKLDNN_INCLUDE_DIR=$(ROOTDIR)/3rdparty/mkldnn/build/install/include
 	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMKLDNN_LIB_DIR=$(ROOTDIR)/lib
 endif
@@ -131,7 +132,10 @@ ngraph: mkldnn
 	       " This is not supported." >&2; \
 	  echo; \
 	  exit 1; \
-	  fi
+	fi
+	@if [[ "$(USE_MKLDNN)" == "1" ]]; then \
+	    cd $(MXNET_LIB_DIR);ln -s -f libmkldnn.so.0 libmkldnn.so; \
+	fi
 	cd "$(NGRAPH_BUILD_DIR)"; \
 	cmake "$(NGRAPH_SRC_DIR)" \
 	  "-DCMAKE_MODULE_PATH=$(ROOTDIR)/cmake/Modules" \
@@ -191,9 +195,6 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
 
   ifeq ($(USE_CUDA), 1)
     NGRAPH_CFLAGS += -DMXNET_USE_CUDA=1
-  endif
-  ifeq ($(USE_MKLDNN), 1)
-    NGRAPH_CFLAGS += -DMXNET_USE_MKLDNN=1
   endif
 
   ifeq ($(USE_NGRAPH_DISTRIBUTED), 1)
