@@ -41,13 +41,13 @@ struct ConvInputs {
   size_t groups;
 };
 
-ConvInputs get_conv_inputs(Emitter* emitter, const NodePtr& node,
+ConvInputs get_conv_inputs(NgraphNodePtr data, NgraphNodePtr filter,
+                           NgraphNodePtr bias,
                            const mxnet::op::ConvolutionParam& param) {
   ConvInputs conv_inputs;
-  conv_inputs.data = emitter->op_map_[node->inputs_[0]];
-  conv_inputs.filter = emitter->op_map_[node->inputs_[1]];
-  conv_inputs.bias =
-      param.no_bias ? nullptr : emitter->op_map_[node->inputs_[2]];
+  conv_inputs.data = data;
+  conv_inputs.filter = filter;
+  conv_inputs.bias = bias;
   conv_inputs.pad = ngraph::CoordinateDiff{param.pad.begin(), param.pad.end()};
   conv_inputs.stride =
       ngraph::Strides{param.stride.begin(), param.stride.end()};
@@ -56,11 +56,16 @@ ConvInputs get_conv_inputs(Emitter* emitter, const NodePtr& node,
   conv_inputs.groups = param.num_group;
   return conv_inputs;
 }
-NgraphNodePtr create_convolution(Emitter* emitter, const NodePtr& node) {
-  const auto& param =
-      nnvm::get<mxnet::op::ConvolutionParam>(node->orig_node_->attrs.parsed);
-  auto conv_inputs = get_conv_inputs(emitter, node, param);
+ConvInputs get_conv_inputs(Emitter* emitter, const NodePtr& node,
+                           const mxnet::op::ConvolutionParam& param) {
+  auto data = emitter->op_map_[node->inputs_[0]];
+  auto filter = emitter->op_map_[node->inputs_[1]];
+  NgraphNodePtr bias =
+      param.no_bias ? nullptr : emitter->op_map_[node->inputs_[2]];
+  return get_conv_inputs(data, filter, bias, param);
+}
 
+NgraphNodePtr create_convolution(const ConvInputs& conv_inputs) {
   auto dshape = conv_inputs.data->get_shape();
   auto fshape = conv_inputs.filter->get_shape();
 
@@ -109,14 +114,102 @@ NgraphNodePtr create_convolution(Emitter* emitter, const NodePtr& node) {
       convolution, bias_reshape);
 }
 
+NgraphNodePtr create_convolution(Emitter* emitter, const NodePtr& node) {
+  const auto& param =
+      nnvm::get<mxnet::op::ConvolutionParam>(node->orig_node_->attrs.parsed);
+  auto conv_inputs = get_conv_inputs(emitter, node, param);
+  return create_convolution(conv_inputs);
+}
+
 #if MXNET_USE_MKLDNN == 1
-NgraphNodePtr create_quantized_convolution(Emitter* emitter,
-                                           const NodePtr& node) {
+NgraphNodePtr create_sgmkldnn_conv(Emitter* emitter, const NodePtr& node) {
   const auto& param_ = nnvm::get<mxnet::op::MKLDNNConvFusionParam>(
       node->orig_node_->attrs.parsed);
   auto& full_conv_param = param_.full_conv_param;
-  auto& mkldnn_param = param_.full_conv_param.mkldnn_param;
-  auto& conv_param = param_.full_conv_param.conv_param;
+  auto& mkldnn_param = full_conv_param.mkldnn_param;
+  auto& conv_param = full_conv_param.conv_param;
+  auto bn_param = param_.bn_param.get();
+  auto conv_inputs = get_conv_inputs(emitter, node, conv_param);
+  auto output = create_convolution(conv_inputs);
+  if (mkldnn_param.with_bn) {
+    enum InputName { kData = 1, kGamma, kBeta, kMovingMean, kMovingVar };
+    auto ng_in_gamma = emitter->op_map_[node->inputs_[kGamma]];
+    auto ng_in_beta = emitter->op_map_[node->inputs_[kBeta]];
+    auto ng_in_moving_mean = emitter->op_map_[node->inputs_[kMovingMean]];
+    auto ng_in_moving_var = emitter->op_map_[node->inputs_[kMovingVar]];
+    auto ng_actual_gamma =
+        bn_param->fix_gamma
+            ? makeConstant(ng_in_moving_mean->get_element_type(),
+                           ng_in_moving_mean->get_shape(), 1)
+            : ng_in_gamma;
+    output = std::make_shared<ngraph::op::BatchNormInference>(
+        output, ng_actual_gamma, ng_in_beta, ng_in_moving_mean,
+        ng_in_moving_var, bn_param->eps);
+  }
+  if (mkldnn_param.with_relu) {
+    output = std::make_shared<ngraph::op::Relu>(output);
+  }
+  return output;
+}
+NgraphNodePtr create_quantized_convolution(Emitter* emitter,
+                                           const NodePtr& node) {
+  if (node->orig_node_->num_outputs() < 2) {
+    // f32 sg_mkldnn_conv op
+    return create_sgmkldnn_conv(emitter, node);
+  }
+
+  // handle quantized sg_mkldnn_conv op, has 3 outputs
+  NgraphNodePtr op;
+  if (node->multi_output_index_ >= 0) {
+    return emitter->multi_output_map_.at(node->inputs_[0])
+        .at(node->multi_output_index_);
+  }
+
+  const auto& param_ = nnvm::get<mxnet::op::MKLDNNConvFusionParam>(
+      node->orig_node_->attrs.parsed);
+  auto& full_conv_param = param_.full_conv_param;
+  auto& mkldnn_param = full_conv_param.mkldnn_param;
+  auto& conv_param = full_conv_param.conv_param;
+  auto bn_param = param_.bn_param.get();
+  auto conv_inputs = get_conv_inputs(emitter, node, conv_param);
+  if (conv_inputs.groups != 1) {
+    throw std::runtime_error("group>1 not supported by quantized_conv for now");
+  }
+  auto fshape = conv_inputs.filter->get_shape();
+  auto data_n = emitter->op_map_[node->inputs_[3]];
+  auto data_m = emitter->op_map_[node->inputs_[4]];
+  auto filter_n = emitter->op_map_[node->inputs_[5]];
+  auto filter_m = emitter->op_map_[node->inputs_[6]];
+  NgraphNodePtr bias, bias_n, bias_m;
+  if (conv_inputs.bias) {
+    bias_n = emitter->op_map_[node->inputs_[3]];
+    bias_m = emitter->op_map_[node->inputs_[4]];
+    ngraph::Shape bias_shape(fshape.size(), 1);
+    bias_shape[1] = fshape[0];
+    ngraph::AxisVector order(1, 0);
+    bias = std::make_shared<ngraph::op::Reshape>(conv_inputs.bias, order,
+                                                 bias_shape);
+  }
+  auto min = makeConstant(ngraph::element::f32, ngraph::Shape{},
+                          std::to_string(mkldnn_param.min_calib_range.value()));
+  auto max = makeConstant(ngraph::element::f32, ngraph::Shape{},
+                          std::to_string(mkldnn_param.max_calib_range.value()));
+
+  op = ngraph::builder::ScaledQuantizedConvolutionBias(
+      conv_inputs.data, conv_inputs.filter, bias, conv_inputs.stride,
+      conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad, conv_inputs.dilate,
+      data_n, data_m, filter_n, filter_m, min, max);
+  emitter->multi_output_map_[node] = {op, data_n, data_m};
+
+  return op;
+}
+NgraphNodePtr create_quantized_convolution1(Emitter* emitter,
+                                            const NodePtr& node) {
+  const auto& param_ = nnvm::get<mxnet::op::MKLDNNConvFusionParam>(
+      node->orig_node_->attrs.parsed);
+  auto& full_conv_param = param_.full_conv_param;
+  auto& mkldnn_param = full_conv_param.mkldnn_param;
+  auto& conv_param = full_conv_param.conv_param;
   auto bn_param = param_.bn_param.get();
   auto conv_inputs = get_conv_inputs(emitter, node, conv_param);
   if (conv_inputs.groups != 1 || !conv_inputs.bias) {
