@@ -153,8 +153,8 @@ NgraphNodePtr create_sgmkldnn_conv(Emitter* emitter, const NodePtr& node) {
 }
 NgraphNodePtr create_quantized_convolution(Emitter* emitter,
                                            const NodePtr& node) {
+  // handle non-quantized sg_mkldnn_conv op, has 1 output
   if (node->orig_node_->num_outputs() < 2) {
-    // f32 sg_mkldnn_conv op
     return create_sgmkldnn_conv(emitter, node);
   }
 
@@ -171,35 +171,63 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   auto& mkldnn_param = full_conv_param.mkldnn_param;
   auto& conv_param = full_conv_param.conv_param;
   auto bn_param = param_.bn_param.get();
-  auto conv_inputs = get_conv_inputs(emitter, node, conv_param);
+
+  size_t idx = 0;
+  auto in_data = idx++;
+  auto in_weight = idx++;
+  auto in_bias = conv_param.no_bias ? 0 : (idx++);
+  auto in_gamma = mkldnn_param.with_bn ? (idx++) : 0;
+  auto in_beta = mkldnn_param.with_bn ? (idx++) : 0;
+  auto in_mean = mkldnn_param.with_bn ? (idx++) : 0;
+  auto in_var = mkldnn_param.with_bn ? (idx++) : 0;
+  auto in_sum = mkldnn_param.with_sum ? (idx++) : 0;
+  auto in_min = idx++;
+  auto in_max = idx++;
+  auto in_sum_min = mkldnn_param.with_sum ? (idx++) : 0;
+  auto in_sum_max = mkldnn_param.with_sum ? (idx++) : 0;
+
+  auto data = emitter->op_map_[node->inputs_[in_data]];
+  auto filter = emitter->op_map_[node->inputs_[in_weight]];
+  auto bias =
+      (in_bias == 0) ? nullptr : emitter->op_map_[node->inputs_[in_bias]];
+  auto conv_inputs = get_conv_inputs(data, filter, bias, conv_param);
   if (conv_inputs.groups != 1) {
     throw std::runtime_error("group>1 not supported by quantized_conv for now");
   }
   auto fshape = conv_inputs.filter->get_shape();
-  auto data_n = emitter->op_map_[node->inputs_[3]];
-  auto data_m = emitter->op_map_[node->inputs_[4]];
-  auto filter_n = emitter->op_map_[node->inputs_[5]];
-  auto filter_m = emitter->op_map_[node->inputs_[6]];
-  NgraphNodePtr bias, bias_n, bias_m;
-  if (conv_inputs.bias) {
-    bias_n = emitter->op_map_[node->inputs_[3]];
-    bias_m = emitter->op_map_[node->inputs_[4]];
+  auto arg1 = std::make_shared<ngraph::op::Reshape>(
+      emitter->op_map_[node->inputs_[in_min]], ngraph::AxisVector{0},
+      ngraph::Shape{});
+  auto arg2 = std::make_shared<ngraph::op::Reshape>(
+      emitter->op_map_[node->inputs_[in_max]], ngraph::AxisVector{0},
+      ngraph::Shape{});
+  auto filter_n =
+      std::make_shared<ngraph::op::Min>(filter, ngraph::AxisSet{0, 1, 2, 3});
+  auto filter_m =
+      std::make_shared<ngraph::op::Max>(filter, ngraph::AxisSet{0, 1, 2, 3});
+  if (in_bias != 0) {
     ngraph::Shape bias_shape(fshape.size(), 1);
     bias_shape[1] = fshape[0];
     ngraph::AxisVector order(1, 0);
     bias = std::make_shared<ngraph::op::Reshape>(conv_inputs.bias, order,
                                                  bias_shape);
   }
+  auto round_mode = ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
+  auto qfilter = ngraph::builder::ScaledQuantize(conv_inputs.filter, filter_n,
+                                                 filter_m, ngraph::element::i8,
+                                                 ngraph::AxisSet{}, round_mode);
+  auto qbias = ngraph::builder::ScaledQuantize(bias, filter_n, filter_m,
+                                               ngraph::element::i32,
+                                               ngraph::AxisSet{}, round_mode);
   auto min = makeConstant(ngraph::element::f32, ngraph::Shape{},
                           std::to_string(mkldnn_param.min_calib_range.value()));
   auto max = makeConstant(ngraph::element::f32, ngraph::Shape{},
                           std::to_string(mkldnn_param.max_calib_range.value()));
-
   op = ngraph::builder::ScaledQuantizedConvolutionBias(
-      conv_inputs.data, conv_inputs.filter, bias, conv_inputs.stride,
-      conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad, conv_inputs.dilate,
-      data_n, data_m, filter_n, filter_m, min, max);
-  emitter->multi_output_map_[node] = {op, data_n, data_m};
+      conv_inputs.data, qfilter, qbias, conv_inputs.stride, conv_inputs.dilate,
+      conv_inputs.pad, conv_inputs.pad, conv_inputs.dilate, arg1, arg2,
+      filter_n, filter_m, min, max, true);
+  emitter->multi_output_map_[node] = {op, arg1, arg2};
 
   return op;
 }
