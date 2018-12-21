@@ -1802,6 +1802,9 @@ void Emitter::CreateLayerOps() {
           data, ngraph::AxisSet{static_cast<size_t>(seq_axis)});
     }
   };
+  // TODO(mbrookhart): debug accuracy issue in inception training caused by
+  // SoftmaxOutput
+  /***
   ngraph_op_funcs_["SoftmaxOutput"] = [this](const NodePtr& node) {
     auto input = op_map_[node->inputs_[0]];
     auto in_shape = input->get_shape();
@@ -1817,6 +1820,7 @@ void Emitter::CreateLayerOps() {
     }
     return std::make_shared<ngraph::op::Softmax>(input, axes);
   };
+  ***/
   ngraph_op_funcs_["MakeLoss"] = [this](const NodePtr& node) {
     // MakeLoss forward returns copy/identity
     return op_map_[node->inputs_[0]];
@@ -1832,6 +1836,10 @@ void Emitter::CreateLossOps() {
   // provides a number of options that only effect the output of backprop, not
   // forward prop, and are difficult or impossible to integrate into
   // nGraph's autodiff functionality.
+
+  // TODO(mbrookhart): debug accuracy issue in inception training caused by
+  // SoftmaxOutput
+  /***
   loss_op_backward_funcs_["SoftmaxOutput"] = [this](
       const NodePtr& node, const NgraphNodePtr& adjoint) {
     const float grad_scale = get_default(node, "grad_scale", 1.0f);
@@ -1940,6 +1948,7 @@ void Emitter::CreateLossOps() {
 
     return gradient;
   };
+  ***/
   loss_op_backward_funcs_["MakeLoss"] = [this](const NodePtr& node,
                                                const NgraphNodePtr& adjoint) {
     auto input = op_map_[node->inputs_[0]];
