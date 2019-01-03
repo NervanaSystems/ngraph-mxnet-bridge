@@ -75,6 +75,10 @@ else()
     message(FATAL_ERROR "USE_CUDA_PATH should be set when USE_NGRAPH_GPU is enabled.")
   endif()
 endif()
+if(USE_MKLDNN)
+    add_definitions(-DMXNET_USE_MKLDNN=1)
+    include_directories(../mkldnn/include)
+endif()
 
 include(cmake/ngraph.cmake)
 
