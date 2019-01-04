@@ -1420,15 +1420,6 @@ void Emitter::CreateLayerOps() {
                        ng_var->get_shape(), eps);
       return ng_one / std::make_shared<ngraph::op::Sqrt>(ng_var + ng_eps);
     };
-    // auto invstd_to_var = [&eps](const NgraphNodePtr& ng_invstd) -> NgraphNodePtr {
-    //   const NgraphNodePtr ng_one =
-    //       makeConstant(ng_invstd->get_element_type(),
-    //                    ng_invstd->get_shape(), 1);
-    //   const NgraphNodePtr ng_eps =
-    //       makeConstant(ng_invstd->get_element_type(),
-    //                    ng_invstd->get_shape(), eps);
-    //   return ng_one / (ng_invstd * ng_invstd - ng_eps);
-    // };
     //----------------------------------------------------------------------------------------------
     // Traditional training mode...
     //----------------------------------------------------------------------------------------------
@@ -1508,8 +1499,11 @@ void Emitter::CreateLayerOps() {
                 eps, ng_maybe_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
                 ng_in_moving_var, channel_axis);
 
-        multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
-                                   var_to_invstd(ng_in_moving_var)};
+        multi_output_map_[node] = {
+            ng_normalized_data,
+            std::make_shared<ngraph::op::StopGradient>(ng_in_moving_mean),
+            std::make_shared<ngraph::op::StopGradient>(
+                var_to_invstd(ng_in_moving_var))};
         return ng_normalized_data;
       }
     }
@@ -1524,8 +1518,11 @@ void Emitter::CreateLayerOps() {
                 ng_in_data, ng_actual_gamma, ng_in_beta, ng_in_moving_mean,
                 ng_in_moving_var, eps);
 
-        multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
-                                   var_to_invstd(ng_in_moving_var)};
+        multi_output_map_[node] = {
+            ng_normalized_data,
+            std::make_shared<ngraph::op::StopGradient>(ng_in_moving_mean),
+            std::make_shared<ngraph::op::StopGradient>(
+                var_to_invstd(ng_in_moving_var))};
         return ng_normalized_data;
       } else {
         const NgraphNodePtr ng_normalized_data =
@@ -1533,8 +1530,11 @@ void Emitter::CreateLayerOps() {
                 eps, ng_maybe_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
                 ng_in_moving_var, channel_axis);
 
-        multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
-                                   var_to_invstd(ng_in_moving_var)};
+        multi_output_map_[node] = {
+            ng_normalized_data,
+            std::make_shared<ngraph::op::StopGradient>(ng_in_moving_mean),
+            std::make_shared<ngraph::op::StopGradient>(
+                var_to_invstd(ng_in_moving_var))};
         return ng_normalized_data;
       }
     }
