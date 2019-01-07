@@ -200,13 +200,6 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
 
   auto conv_inputs = get_conv_inputs(data, filter, bias, conv_param);
   auto fshape = conv_inputs.filter->get_shape();
-  if (bias != nullptr) {
-    ngraph::Shape bias_shape(fshape.size(), 1);
-    bias_shape[1] = fshape[0];
-    ngraph::AxisVector order(1, 0);
-    bias = std::make_shared<ngraph::op::Reshape>(conv_inputs.bias, order,
-                                                 bias_shape);
-  }
   auto min_conv =
       makeConstant(ngraph::element::f32, ngraph::Shape{},
                    std::to_string(mkldnn_param.min_calib_range.value()));
