@@ -173,39 +173,61 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   auto bn_param = param_.bn_param.get();
 
   size_t idx = 0;
-  auto in_data = idx++;
-  auto in_weight = idx++;
-  auto in_bias = conv_param.no_bias ? 0 : (idx++);
-  auto in_gamma = mkldnn_param.with_bn ? (idx++) : 0;
-  auto in_beta = mkldnn_param.with_bn ? (idx++) : 0;
-  auto in_mean = mkldnn_param.with_bn ? (idx++) : 0;
-  auto in_var = mkldnn_param.with_bn ? (idx++) : 0;
-  auto in_sum = mkldnn_param.with_sum ? (idx++) : 0;
-  auto in_min = idx++;
-  auto in_max = idx++;
-  auto in_sum_min = mkldnn_param.with_sum ? (idx++) : 0;
-  auto in_sum_max = mkldnn_param.with_sum ? (idx++) : 0;
-
-  auto data = emitter->op_map_[node->inputs_[in_data]];
-  auto filter = emitter->op_map_[node->inputs_[in_weight]];
+  auto data = emitter->op_map_[node->inputs_[idx++]];
+  auto filter = emitter->op_map_[node->inputs_[idx++]];
   auto bias =
-      (in_bias == 0) ? nullptr : emitter->op_map_[node->inputs_[in_bias]];
+      conv_param.no_bias ? nullptr : emitter->op_map_[node->inputs_[idx++]];
+  auto gamma =
+      mkldnn_param.with_bn ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
+  auto beta =
+      mkldnn_param.with_bn ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
+  auto mean =
+      mkldnn_param.with_bn ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
+  auto var =
+      mkldnn_param.with_bn ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
+  auto in_sum =
+      mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
+  auto min = std::make_shared<ngraph::op::Reshape>(
+      emitter->op_map_[node->inputs_[idx++]], ngraph::AxisVector{0},
+      ngraph::Shape{});
+  auto max = std::make_shared<ngraph::op::Reshape>(
+      emitter->op_map_[node->inputs_[idx++]], ngraph::AxisVector{0},
+      ngraph::Shape{});
+  auto sum_min =
+      mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
+  auto sum_max =
+      mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
+
   auto conv_inputs = get_conv_inputs(data, filter, bias, conv_param);
-  if (conv_inputs.groups != 1) {
-    throw std::runtime_error("group>1 not supported by quantized_conv for now");
-  }
   auto fshape = conv_inputs.filter->get_shape();
-  auto arg1 = std::make_shared<ngraph::op::Reshape>(
-      emitter->op_map_[node->inputs_[in_min]], ngraph::AxisVector{0},
-      ngraph::Shape{});
-  auto arg2 = std::make_shared<ngraph::op::Reshape>(
-      emitter->op_map_[node->inputs_[in_max]], ngraph::AxisVector{0},
-      ngraph::Shape{});
+  if (bias != nullptr) {
+    ngraph::Shape bias_shape(fshape.size(), 1);
+    bias_shape[1] = fshape[0];
+    ngraph::AxisVector order(1, 0);
+    bias = std::make_shared<ngraph::op::Reshape>(conv_inputs.bias, order,
+                                                 bias_shape);
+  }
+  auto min_conv =
+      makeConstant(ngraph::element::f32, ngraph::Shape{},
+                   std::to_string(mkldnn_param.min_calib_range.value()));
+  auto max_conv =
+      makeConstant(ngraph::element::f32, ngraph::Shape{},
+                   std::to_string(mkldnn_param.max_calib_range.value()));
+  op = ngraph::builder::ScaledQuantizedConvolutionFusion(
+      conv_inputs.data, conv_inputs.filter, bias, gamma, beta, mean, var,
+      in_sum, min, max, sum_min, sum_max, min_conv, max_conv,
+      conv_inputs.stride, conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad,
+      conv_inputs.dilate, true, true);
+  emitter->multi_output_map_[node] = {op, min, max};
+
+  return op;
+}
+#if 0
   auto filter_n =
       std::make_shared<ngraph::op::Min>(filter, ngraph::AxisSet{0, 1, 2, 3});
   auto filter_m =
       std::make_shared<ngraph::op::Max>(filter, ngraph::AxisSet{0, 1, 2, 3});
-  if (in_bias != 0) {
+  if (bias != nullptr) {
     ngraph::Shape bias_shape(fshape.size(), 1);
     bias_shape[1] = fshape[0];
     ngraph::AxisVector order(1, 0);
@@ -231,6 +253,7 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
 
   return op;
 }
+#endif
 NgraphNodePtr create_quantized_convolution1(Emitter* emitter,
                                             const NodePtr& node) {
   const auto& param_ = nnvm::get<mxnet::op::MKLDNNConvFusionParam>(
