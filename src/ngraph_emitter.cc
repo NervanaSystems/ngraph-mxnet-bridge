@@ -1411,7 +1411,15 @@ void Emitter::CreateLayerOps() {
     const bool ngraph_bn_op_available = (data_shape_size == 4) &&
                                         (channel_axis == 1) &&
                                         (node->dtype_ == mshadow::kFloat32);
-
+    auto var_to_invstd = [&eps](const NgraphNodePtr& ng_var) -> NgraphNodePtr {
+      const NgraphNodePtr ng_one =
+          makeConstant(ng_var->get_element_type(),
+                       ng_var->get_shape(), 1);
+      const NgraphNodePtr ng_eps =
+          makeConstant(ng_var->get_element_type(),
+                       ng_var->get_shape(), eps);
+      return ng_one / std::make_shared<ngraph::op::Sqrt>(ng_var + ng_eps);
+    };
     //----------------------------------------------------------------------------------------------
     // Traditional training mode...
     //----------------------------------------------------------------------------------------------
@@ -1421,8 +1429,9 @@ void Emitter::CreateLayerOps() {
       NgraphNodePtr ng_batch_var;
 
       if (ngraph_bn_op_available) {
-        const NgraphNodePtr BN = std::make_shared<ngraph::op::BatchNormTraining>(
-            eps, ng_actual_gamma, ng_in_beta, ng_in_data);
+        const NgraphNodePtr BN =
+            std::make_shared<ngraph::op::BatchNormTraining>(
+                ng_in_data, ng_actual_gamma, ng_in_beta, eps);
         ng_normalized_data =
             std::make_shared<ngraph::op::GetOutputElement>(BN, 0);
         ng_batch_mean = std::make_shared<ngraph::op::GetOutputElement>(BN, 1);
@@ -1449,8 +1458,11 @@ void Emitter::CreateLayerOps() {
           ng_in_moving_var * ng_momentum +
           ng_batch_var * (ng_one - ng_momentum);
 
-      multi_output_map_[node] = {ng_normalized_data, ng_batch_mean,
-                                 ng_batch_var};
+      multi_output_map_[node] = {
+          ng_normalized_data,
+          std::make_shared<ngraph::op::StopGradient>(ng_batch_mean),
+          std::make_shared<ngraph::op::StopGradient>(
+              var_to_invstd(ng_batch_var))};
 
       return ng_normalized_data;
     }
@@ -1487,8 +1499,11 @@ void Emitter::CreateLayerOps() {
                 eps, ng_maybe_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
                 ng_in_moving_var, channel_axis);
 
-        multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
-                                   ng_in_moving_var};
+        multi_output_map_[node] = {
+            ng_normalized_data,
+            std::make_shared<ngraph::op::StopGradient>(ng_in_moving_mean),
+            std::make_shared<ngraph::op::StopGradient>(
+                var_to_invstd(ng_in_moving_var))};
         return ng_normalized_data;
       }
     }
@@ -1500,11 +1515,14 @@ void Emitter::CreateLayerOps() {
       if (ngraph_bn_op_available) {
         const NgraphNodePtr ng_normalized_data =
             std::make_shared<ngraph::op::BatchNormInference>(
-                eps, ng_actual_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
-                ng_in_moving_var);
+                ng_in_data, ng_actual_gamma, ng_in_beta, ng_in_moving_mean,
+                ng_in_moving_var, eps);
 
-        multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
-                                   ng_in_moving_var};
+        multi_output_map_[node] = {
+            ng_normalized_data,
+            std::make_shared<ngraph::op::StopGradient>(ng_in_moving_mean),
+            std::make_shared<ngraph::op::StopGradient>(
+                var_to_invstd(ng_in_moving_var))};
         return ng_normalized_data;
       } else {
         const NgraphNodePtr ng_normalized_data =
@@ -1512,8 +1530,11 @@ void Emitter::CreateLayerOps() {
                 eps, ng_maybe_gamma, ng_in_beta, ng_in_data, ng_in_moving_mean,
                 ng_in_moving_var, channel_axis);
 
-        multi_output_map_[node] = {ng_normalized_data, ng_in_moving_mean,
-                                   ng_in_moving_var};
+        multi_output_map_[node] = {
+            ng_normalized_data,
+            std::make_shared<ngraph::op::StopGradient>(ng_in_moving_mean),
+            std::make_shared<ngraph::op::StopGradient>(
+                var_to_invstd(ng_in_moving_var))};
         return ng_normalized_data;
       }
     }
@@ -1701,6 +1722,11 @@ void Emitter::CreateLayerOps() {
   };
 
   ngraph_op_funcs_["Pooling"] = [this](const NodePtr& node) -> NgraphNodePtr {
+    auto num_outputs = node->orig_node_->num_outputs();
+    if (num_outputs > 1 && node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
     NgraphNodePtr op;
     std::string type = get_default(node, "pool_type", std::string("max"));
     if (type == "max") {
@@ -1709,6 +1735,9 @@ void Emitter::CreateLayerOps() {
       op = ngraph_op_funcs_["avg_pooling"](node);
     } else if (type == "sum") {
       op = ngraph_op_funcs_["sum_pooling"](node);
+    }
+    if (num_outputs > 1) {
+      multi_output_map_[node] = {op, makeConstant(node, "0")};
     }
     return op;
   };
@@ -1793,6 +1822,9 @@ void Emitter::CreateLayerOps() {
           data, ngraph::AxisSet{static_cast<size_t>(seq_axis)});
     }
   };
+  // TODO(mbrookhart): debug accuracy issue in inception training caused by
+  // SoftmaxOutput
+  /***
   ngraph_op_funcs_["SoftmaxOutput"] = [this](const NodePtr& node) {
     auto input = op_map_[node->inputs_[0]];
     auto in_shape = input->get_shape();
@@ -1808,6 +1840,7 @@ void Emitter::CreateLayerOps() {
     }
     return std::make_shared<ngraph::op::Softmax>(input, axes);
   };
+  ***/
   ngraph_op_funcs_["MakeLoss"] = [this](const NodePtr& node) {
     // MakeLoss forward returns copy/identity
     return op_map_[node->inputs_[0]];
@@ -1823,6 +1856,10 @@ void Emitter::CreateLossOps() {
   // provides a number of options that only effect the output of backprop, not
   // forward prop, and are difficult or impossible to integrate into
   // nGraph's autodiff functionality.
+
+  // TODO(mbrookhart): debug accuracy issue in inception training caused by
+  // SoftmaxOutput
+  /***
   loss_op_backward_funcs_["SoftmaxOutput"] = [this](
       const NodePtr& node, const NgraphNodePtr& adjoint) {
     const float grad_scale = get_default(node, "grad_scale", 1.0f);
@@ -1931,6 +1968,7 @@ void Emitter::CreateLossOps() {
 
     return gradient;
   };
+  ***/
   loss_op_backward_funcs_["MakeLoss"] = [this](const NodePtr& node,
                                                const NgraphNodePtr& adjoint) {
     auto input = op_map_[node->inputs_[0]];
@@ -2002,8 +2040,8 @@ void Emitter::UnsupportedOps() {
   supported_ops["Pooling"] = [](const NodePtr& node) {
     auto pool_type = get_default(node, "pool_type", std::string("max"));
     std::vector<std::string> supported{"max", "sum", "avg"};
-    if (std::find(supported.begin(), supported.end(),
-        pool_type) == supported.end()) {
+    if (std::find(supported.begin(), supported.end(), pool_type) ==
+        supported.end()) {
       return false;
     }
     return true;

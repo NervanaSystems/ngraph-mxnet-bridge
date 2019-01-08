@@ -47,8 +47,7 @@
 #   USE_NGRAPH
 #   USE_NGRAPH_DISTRIBUTED
 #   USE_NGRAPH_IE
-#   MKLDNN_INCLUDE_DIR
-#   MKLDNN_LIB_DIR
+#   USE_MKLDNN
 #   NGRAPH_EXTRA_CMAKE_FLAGS
 #   NGRAPH_EXTRA_MAKE_FLAGS
 #   ROOTDIR
@@ -74,12 +73,10 @@ ifeq ($(DEBUG), 1)
 endif
 override NGRAPH_EXTRA_CMAKE_FLAGS += -DNGRAPH_UNIT_TEST_ENABLE=0 -DNGRAPH_TOOLS_ENABLE=0
 
-ifneq ($(MKLDNN_INCLUDE_DIR),)
-	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMKLDNN_INCLUDE_DIR=$(MKLDNN_INCLUDE_DIR)
-endif
-
-ifneq ($(MKLDNN_LIB_DIR),)
-	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMKLDNN_LIB_DIR=$(MKLDNN_LIB_DIR)
+ifeq ($(USE_MKLDNN), 1)
+	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMXNET_USE_MKLDNN=1
+	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMKLDNN_INCLUDE_DIR=$(ROOTDIR)/3rdparty/mkldnn/build/install/include
+	override NGRAPH_EXTRA_CMAKE_FLAGS += -DMKLDNN_LIB_DIR=$(ROOTDIR)/lib
 endif
 
 NGRAPH_EXTRA_MAKE_FLAGS="VERBOSE=1"
@@ -135,12 +132,16 @@ ngraph: mkldnn
 	       " This is not supported." >&2; \
 	  echo; \
 	  exit 1; \
-	  fi
+	fi
+	@if [[ "$(USE_MKLDNN)" == "1" ]]; then \
+	    cd $(MXNET_LIB_DIR);ln -s -f libmkldnn.so.0 libmkldnn.so; \
+	fi
 	cd "$(NGRAPH_BUILD_DIR)"; \
 	cmake "$(NGRAPH_SRC_DIR)" \
 	  "-DCMAKE_MODULE_PATH=$(ROOTDIR)/cmake/Modules" \
 	  "-DCMAKE_INSTALL_PREFIX=$(NGRAPH_INSTALL_DIR)" \
 	  "-DUSE_CUDA=$(USE_CUDA)" \
+	  "-DUSE_MKLDNN=$(USE_MKLDNN)" \
 	  "-DBLAS=$(USE_BLAS)" \
 	  "-DUSE_NGRAPH_DISTRIBUTED=$(USE_NGRAPH_DISTRIBUTED)" \
 	  "-DUSE_NGRAPH_GPU=$(USE_NGRAPH_GPU)" \
