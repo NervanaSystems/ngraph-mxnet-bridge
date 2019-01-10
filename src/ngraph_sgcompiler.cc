@@ -29,6 +29,7 @@
 #include <ngraph/graph_util.hpp>
 #include <ngraph/pass/manager.hpp>
 #include <ngraph/pass/reshape_elimination.hpp>
+#include <ngraph/pass/like_replacement.hpp>
 #include <ngraph/runtime/cpu/pass/cpu_fusion.hpp>
 #include <ngraph/serializer.hpp>
 
@@ -181,12 +182,14 @@ void OptimizeGraph(std::shared_ptr<Graph> sub_graph,
   ngraph::pass::Manager pass_manager;
   pass_manager.register_pass<ngraph::pass::ReshapeElimination>();
   pass_manager.register_pass<ngraph::pass::ReshapeElimination>();
+  pass_manager.register_pass<ngraph::pass::LikeReplacement>();
 
   pass_manager.run_passes(f);
   pass_manager.run_passes(bf);
 
 #ifndef MXNET_USE_NGRAPH_IE
-  if (get_backend_name(sub_graph->context_) == "CPU" &&
+  if (ngraph_enable_fusion() &&
+      get_backend_name(sub_graph->context_) == "CPU" &&
       exe_mode == GraphExeMode::kTrain) {
     // if we're in CPU, combine the graphs
     ngraph::NodeVector dYdXs;
@@ -276,7 +279,8 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeForwardFunction(
 
 // fuse conv + bias before autodiff
 #ifndef MXNET_USE_NGRAPH_IE
-  if (get_backend_name(sub_graph->context_) == "CPU" &&
+  if (ngraph_enable_fusion() &&
+      get_backend_name(sub_graph->context_) == "CPU" &&
       exe_mode_ == GraphExeMode::kTrain) {
     ngraph::pass::Manager pass_manager;
     pass_manager.register_pass<ngraph::runtime::cpu::pass::CPUFusion>(

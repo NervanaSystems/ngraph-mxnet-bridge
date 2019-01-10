@@ -49,6 +49,9 @@ inline bool ngraph_log_verbose() {
 inline bool ngraph_log_graph() {
   return dmlc::GetEnv("MXNET_NGRAPH_VERBOSE_GRAPH", false);
 }
+inline bool ngraph_enable_fusion() {
+  return dmlc::GetEnv("MXNET_ENABLE_FUSION", true);
+}
 inline bool ngraph_log_viz() {
   return dmlc::GetEnv("MXNET_NGRAPH_VERBOSE_VIZ", false);
 }
