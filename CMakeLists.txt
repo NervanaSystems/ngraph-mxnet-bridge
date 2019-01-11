@@ -21,6 +21,12 @@ SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g")
 SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g")
 set(NGRAPH_INSTALL_PREFIX ${CMAKE_CURRENT_BINARY_DIR})
 
+if(NGRAPH_EXTRA_CMAKE_FLAGS)
+  string(REPLACE " " ";" NGRAPH_EXTRA_CMAKE_FLAGS ${NGRAPH_EXTRA_CMAKE_FLAGS})
+else()
+  set(NGRAPH_EXTRA_CMAKE_FLAGS "")
+endif()
+
 # Flags required for SDL325
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -D_FORTIFY_SOURCE=2 -fPIE")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wformat -Wformat-security")
@@ -75,9 +81,16 @@ else()
     message(FATAL_ERROR "USE_CUDA_PATH should be set when USE_NGRAPH_GPU is enabled.")
   endif()
 endif()
+
 if(USE_MKLDNN)
+    message("${MKLROOT}")
+    execute_process(COMMAND bash "-c" "ln -s ${CMAKE_BINARY_DIR}/3rdparty/mkldnn/src/libmkldnn.so ${MKLROOT}/lib/")
+
+    set(MKLDNN_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/3rdparty/mkldnn/include")
+    set(MKLDNN_LIB_DIR "${MKLROOT}/lib/")
+
     add_definitions(-DMXNET_USE_MKLDNN=1)
-    include_directories(../mkldnn/include)
+    include_directories(${MKLDNN_INCLUDE_DIR})
 endif()
 
 include(cmake/ngraph.cmake)
