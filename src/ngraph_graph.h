@@ -238,6 +238,8 @@ class Graph : public Node {
         }
       }
     }
+    std::unordered_set<NodePtr> visited;
+    clear_nodes(visited);
   }
 
   std::string createNodeLabel() override {
