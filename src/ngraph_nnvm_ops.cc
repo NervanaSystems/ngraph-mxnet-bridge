@@ -72,8 +72,8 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
                      const std::vector<mxnet::NDArray> &inputs,
                      const std::vector<mxnet::OpReqType> &req,
                      const std::vector<mxnet::NDArray> &outputs) {
-  if (!graph->initialized) {}
   auto backend = graph->get_backend();
+  graph->tensor_fwd_index_cur_ = 0;
   bool is_train = ctx.is_train;
   if (!graph->need_grad) {
     is_train = false;
@@ -88,7 +88,8 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   compile_if_needed(graph, mode);
 
   auto placeholders = get_tensors(
-      inputs, graph, graph->bool_nodes_[mode][(int)(NodeReferences::kForwardInput)],
+      inputs, graph, true,
+      graph->bool_nodes_[mode][(int)(NodeReferences::kForwardInput)],
       graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardInput)], nullptr,
       graph->is_reuse_mem);
 
@@ -97,14 +98,16 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   TensorVector results;
   if (is_train) {
     results = get_tensors(
-        outputs, graph, graph->bool_nodes_[mode][(int)(NodeReferences::kForwardOutput)],
+        outputs, graph, true,
+        graph->bool_nodes_[mode][(int)(NodeReferences::kForwardOutput)],
         graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardOutput)], &req,
         graph->is_reuse_mem);
   } else {
     results = get_tensors(
         std::vector<mxnet::NDArray>(outputs.begin(),
                                     outputs.begin() + graph->num_outputs_),
-        graph, graph->bool_nodes_[mode][(int)(NodeReferences::kForwardOutput)],
+        graph, true,
+        graph->bool_nodes_[mode][(int)(NodeReferences::kForwardOutput)],
         graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardOutput)], &req,
         graph->is_reuse_mem);
   }
@@ -115,11 +118,12 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     }
   }
 
-  check(placeholders.size() == graph->ngraph_forward[mode]->get_parameters().size());
+  check(placeholders.size() ==
+        graph->ngraph_forward[mode]->get_parameters().size());
   check(results.size() == graph->ngraph_forward[mode]->get_results().size());
 
   backend->call(graph->ngraph_forward[mode], results, placeholders);
-  
+
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
 
   if (mode == static_cast<int>(GraphExeMode::kInfer)) {
@@ -143,6 +147,7 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   if (!graph->need_grad) {
     return;
   }
+  graph->tensor_bwd_index_cur_ = 0;
 
   // only expect backward is called in training mode
   auto backend = graph->get_backend();
@@ -151,9 +156,10 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   compile_if_needed(graph, mode);
 
   auto input_tvs = get_tensors(
-      inputs, graph, graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardInput)],
-      graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardInput)], nullptr,
-      graph->is_reuse_mem);
+      inputs, graph, false,
+      graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardInput)],
+      graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardInput)],
+      nullptr, graph->is_reuse_mem);
 
   size_t adjoints = 0;
   if (!graph->zero_grad) {
@@ -183,12 +189,14 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   }
   check(req.size() == outputs.size());
   auto results = get_tensors(
-      outputs, graph, graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardOutput)],
+      outputs, graph, false,
+      graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardOutput)],
       graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardOutput)], &req,
       graph->is_reuse_mem);
 
   check(graph->ngraph_backward[mode] != nullptr);
-  check(placeholders.size() == graph->ngraph_backward[mode]->get_parameters().size());
+  check(placeholders.size() ==
+        graph->ngraph_backward[mode]->get_parameters().size());
   check(results.size() == graph->ngraph_backward[mode]->get_results().size());
 
   backend->call(graph->ngraph_backward[mode], results, placeholders);
