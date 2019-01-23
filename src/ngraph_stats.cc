@@ -33,7 +33,6 @@ std::string exe_mode_to_string(int mode) {
   }
 }
 void NGraphStats::dump(std::ostream& out) {
-#if 1
   if (ngraph_log_timer()) {
     // accumulator for forward/backward/Combined summary at the end
     const int pass_count = 3;
@@ -89,7 +88,6 @@ void NGraphStats::dump(std::ostream& out) {
     }
     out << std::string(total_column_, '#') << "\n";
   }
-#endif
 }
 
 struct TimeCount {
