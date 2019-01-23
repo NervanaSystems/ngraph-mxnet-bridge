@@ -77,8 +77,9 @@ else()
 endif()
 if(USE_MKLDNN)
     add_definitions(-DMXNET_USE_MKLDNN=1)
-    include_directories(../mkldnn/include)
+    include_directories("${MKLDNN_INCLUDE_DIR}")
 endif()
+
 
 include(cmake/ngraph.cmake)
 
@@ -91,6 +92,7 @@ include_directories(../tvm/dlpack/include/)
 include_directories(../dlpack/include/)
 include_directories(build/include/)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/ngraph/src/ext_ngraph-build/mkl/src/ext_mkl/include)
 
 add_subdirectory(src)
 

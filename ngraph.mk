@@ -184,6 +184,7 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
   NGRAPH_CFLAGS = \
     "-I$(NGRAPH_INSTALL_DIR)/include" \
     "-I$(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/src" \
+    "-I$(ROOTDIR)/3rdparty/ngraph-mxnet-bridge/build/ngraph/src/ext_ngraph-build/mkl/src/ext_mkl/include" \
     -DMXNET_USE_NGRAPH=1
 
   ifeq ($(USE_NGRAPH_IE),1)
