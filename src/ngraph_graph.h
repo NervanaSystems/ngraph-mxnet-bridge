@@ -314,6 +314,9 @@ class Graph : public Node {
   std::vector<NodePtr> outputs_;
   std::vector<std::shared_ptr<OutputElement>> output_elements_;
   std::vector<bool> input_is_weight_;
+  bool initialized = false;
+  std::vector<std::shared_ptr<ngraph::runtime::Tensor>> tensors_;
+  std::vector<size_t> ndarray_vers_;
   bool zero_grad = false;
   // By default, we assume need_grad is always true
   // we only know grad_req for Paritition Graph passes, so

@@ -32,6 +32,8 @@
 
 namespace ngraph_bridge {
 
+using NgraphNodePtr = std::shared_ptr<ngraph::Node>;
+using nnvmNodePtr = std::shared_ptr<nnvm::Node>;
 inline const ngraph::element::Type& getType(int type) {
   static const std::map<int, const ngraph::element::Type*> typemap = {
       {mshadow::kFloat32, &ngraph::element::f32},

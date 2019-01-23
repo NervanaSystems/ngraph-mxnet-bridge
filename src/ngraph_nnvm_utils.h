@@ -77,22 +77,86 @@ inline TensorVector make_ngraph_placeholders(
   return out;
 }
 
+inline void init_tensors(std::shared_ptr<Graph>& graph,
+                         const std::vector<mxnet::NDArray>& ndarrays) {
+  graph->tensors_.assign(ndarrays.size(), nullptr);
+  graph->ndarray_vers_.assign(ndarrays.size(),
+                              std::numeric_limits<size_t>::max());
+  auto backend = graph->get_backend();
+  void* dptr = ndarrays[index].storage_handle().dptr;
+  check(backend != nullptr);
+  check(dptr != nullptr);
+  ngraph::Shape shape{};
+  if (!is_scalar) {
+    shape = TShape_to_NShape(ndarrays[index].shape());
+  }
+  if (is_boolean) {
+    graph->tensors_[index] =
+        backend->create_tensor(ngraph::element::boolean, shape, dptr);
+
+  } else {
+    graph->tensors_[index] =
+        backend->create_tensor(getType(ndarrays[index].dtype()), shape, dptr);
+  }
+  graph->ndarray_vers_[index] = ndarrays[index].version();
+}
+inline std::shared_ptr<ngraph::runtime::Tensor> get_tensor(
+    std::shared_ptr<Graph>& graph, const std::vector<mxnet::NDArray>& ndarrays,
+    size_t index, bool is_boolean, bool is_scalar) {
+  if (ndarrays.size() < 1) return nullptr;
+  if (graph->tensors_.size() != ndarrays.size()) {
+    std::cout << "ndarrays size " << ndarrays.size() << ":"
+              << graph->tensors_.size() << "\n";
+    // reset tensors state
+    graph->tensors_.assign(ndarrays.size(), nullptr);
+    graph->ndarray_vers_.assign(ndarrays.size(),
+                                std::numeric_limits<size_t>::max());
+  }
+  if (graph->tensors_[index] == nullptr ||
+      graph->ndarray_vers_[index] != ndarrays[index].version() ||
+      graph->tensors_[index]->get_shape() !=
+          TShape_to_NShape(ndarrays[index].shape())) {
+    std::cout << "creating ndarrays tensor  " << index << ":"
+              << graph->tensors_[index] << ":" << graph->ndarray_vers_[index]
+              << ":" << ndarrays[index].version() << "\n";
+    auto backend = graph->get_backend();
+    void* dptr = ndarrays[index].storage_handle().dptr;
+    check(backend != nullptr);
+    check(dptr != nullptr);
+    ngraph::Shape shape{};
+    if (!is_scalar) {
+      shape = TShape_to_NShape(ndarrays[index].shape());
+    }
+    if (is_boolean) {
+      graph->tensors_[index] =
+          backend->create_tensor(ngraph::element::boolean, shape, dptr);
+
+    } else {
+      graph->tensors_[index] =
+          backend->create_tensor(getType(ndarrays[index].dtype()), shape, dptr);
+    }
+  }
+  graph->ndarray_vers_[index] = ndarrays[index].version();
+  return graph->tensors_[index];
+}
+
 // creates and returns vector of Tensors for corresponding NDArrays
 // reuses NDArray memory for each Tensor if req is not kAddTo
 inline TensorVector get_tensors(
-    const std::vector<mxnet::NDArray>& ndarrays,
-    std::shared_ptr<ngraph::runtime::Backend> backend,
-    std::vector<bool> is_boolean,
-    std::vector<bool> is_scalar,
+    const std::vector<mxnet::NDArray>& ndarrays, std::shared_ptr<Graph>& graph,
+    std::vector<bool> is_boolean, std::vector<bool> is_scalar,
     const std::vector<mxnet::OpReqType>* req = nullptr,
     const bool mem_reuse = true) {
+  auto backend = graph->get_backend();
   TensorVector out;
   for (size_t i = 0; i < ndarrays.size(); ++i) {
     if (!mem_reuse || ((req != nullptr) && ((*req)[i] == mxnet::kAddTo))) {
       out.push_back(NDArray_to_Tensor(ndarrays[i], backend, (req == nullptr)));
     } else {
-      out.push_back(const_cast<mxnet::NDArray&>(ndarrays[i])
-                        .create_tensor(is_boolean[i], is_scalar[i]));
+      /* out.push_back(const_cast<mxnet::NDArray&>(ndarrays[i]) */
+      /*                   .create_tensor(is_boolean[i], is_scalar[i])); */
+      out.push_back(
+          get_tensor(graph, ndarrays, i, is_boolean[i], is_scalar[i]));
     }
   }
   return out;
