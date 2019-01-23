@@ -56,6 +56,7 @@ inline bool ngraph_log_timer() {
   return dmlc::GetEnv("MXNET_NGRAPH_TIMER", false);
 }
 extern const bool ngraph_log_verbose_detail;
+extern const bool ngraph_tensor_recreate;
 
 // Add an inline function to throw a standard runtime error
 // we do this because the MXNet CHECK family of Macros intermittently
