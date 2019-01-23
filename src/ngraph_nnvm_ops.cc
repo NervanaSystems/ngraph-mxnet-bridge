@@ -93,6 +93,13 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
       graph->scalar_nodes_[mode][(int)(NodeReferences::kForwardInput)], nullptr,
       graph->is_reuse_mem);
 
+  if (!graph->first_iter && mode == static_cast<int>(GraphExeMode::kInfer)) {
+    for (size_t i = 0; i < placeholders.size(); ++i) {
+      if (graph->input_is_weight_[i]) {
+        placeholders[i]->set_stale(false);
+      }
+    }
+  }
   check(req.size() == outputs.size());
   // for outputs we need to comply with req
   TensorVector results;
@@ -123,15 +130,10 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   check(results.size() == graph->ngraph_forward[mode]->get_results().size());
 
   backend->call(graph->ngraph_forward[mode], results, placeholders);
-
+  graph->first_iter = false;
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
 
   if (mode == static_cast<int>(GraphExeMode::kInfer)) {
-    for (size_t i = 0; i < placeholders.size(); ++i) {
-      if (graph->input_is_weight_[i]) {
-        placeholders[i]->set_stale(false);
-      }
-    }
     TensorVector aux_results;
     aux_results.insert(aux_results.end(), results.begin() + graph->num_outputs_,
                        results.begin() + graph->num_outputs_ +

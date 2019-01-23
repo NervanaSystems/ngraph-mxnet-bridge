@@ -314,6 +314,7 @@ class Graph : public Node {
   std::vector<NodePtr> outputs_;
   std::vector<std::shared_ptr<OutputElement>> output_elements_;
   std::vector<bool> input_is_weight_;
+  bool first_iter = false;
   std::vector<std::shared_ptr<ngraph::runtime::Tensor>> tensors_fwd_;
   size_t tensor_fwd_index_cur_ = 0;
   std::vector<std::shared_ptr<ngraph::runtime::Tensor>> tensors_bwd_;
