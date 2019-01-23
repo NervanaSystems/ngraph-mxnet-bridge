@@ -98,6 +98,7 @@ inline std::shared_ptr<ngraph::runtime::Tensor> get_tensor(
     }
     return tensor;
   };
+  if (ngraph_tensor_recreate) return create_tensor();
   auto index =
       is_fwd ? graph->tensor_fwd_index_cur_++ : graph->tensor_bwd_index_cur_++;
   auto& tensors = is_fwd ? graph->tensors_fwd_ : graph->tensors_bwd_;
