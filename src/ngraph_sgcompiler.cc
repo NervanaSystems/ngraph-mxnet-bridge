@@ -407,8 +407,12 @@ void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
   }
 
   ngraph_check(exe_mode_ == GraphExeMode::kInfer);
-  // No need to compile the backprop function if we're running in inference
-  // mode.
+
+  sub_graph->fprop_cache->fprop = f;
+  sub_graph->fprop_cache->bprop = MakeBackwardFunction(sub_graph, f);
+  sub_graph->fprop_cache->node_param_map =
+      std::make_shared<ngraph::NodeMap>();
+
   CompileForward(sub_graph, f, exe_mode_);
 }
 
