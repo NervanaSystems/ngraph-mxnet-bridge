@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include <ngraph/op/experimental/generate_mask.hpp>
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
 #include "../../../src/operator/nn/upsampling-inl.h"
@@ -128,6 +129,22 @@ void Emitter::CreateUnaryOps() {
   ngraph_op_funcs_["Activation"] = [this](const NodePtr node) {
     auto act_type = node->orig_node_->attrs.dict["act_type"];
     return ngraph_op_funcs_[act_type](node);
+  };
+  ngraph_op_funcs_["Dropout"] = [this](const NodePtr node) {
+    auto input = op_map_[node->inputs_[0]];
+    auto p = get_default(node, "p", 0.5f);
+    auto result_shape = get_default(node, "axes", std::vector<size_t>());
+    const unsigned int seed = 0;
+    auto dtype = input->get_element_type();
+    auto shape = input->get_shape();
+    
+    auto mode = get_default(node, "mode", std::string("training"));
+    auto training = (mode == "training") ? 
+        makeConstant(dtype, ngraph::Shape{}, 1) : makeConstant(dtype, ngraph::Shape{}, 0);
+
+    auto gm = std::make_shared<ngraph::op::GenerateMask>(training, shape, dtype, seed, p);
+    auto ng_p = makeConstant(dtype, shape, 1 / p);
+    return input * gm * ng_p;
   };
   ngraph_op_funcs_["LeakyReLU"] = [this](const NodePtr& node) {
     const std::string act_type =
