@@ -1374,6 +1374,36 @@ void Emitter::CreateLayerOps() {
         op_map_[node->inputs_[0]], pyrange(in_shape.size()), out_shape);
   };
 
+  ngraph_op_funcs_["LayerNorm"] = [this](const NodePtr& node) -> NgraphNodePtr {
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    const float eps = get_default(node, "eps", 1e-5f);
+    const size_t channel_axis =
+        get_default_transformed_axis(node, "axis", -1, node->shape_.ndim());
+    std::cout << channel_axis << std::endl;
+
+    NgraphNodePtr ng_in_data = op_map_[node->inputs_[0]];
+    NgraphNodePtr ng_in_gamma = op_map_[node->inputs_[1]];
+    NgraphNodePtr ng_in_beta = op_map_[node->inputs_[2]];
+
+    NgraphNodePtr ng_normalized_data;
+    NgraphNodePtr ng_batch_mean;
+    NgraphNodePtr ng_batch_var;
+
+    std::tie(ng_normalized_data, ng_batch_mean, ng_batch_var) =
+        create_layernorm_training_without_ngraph_bn_op(
+            eps, ng_in_gamma, ng_in_beta, ng_in_data, channel_axis);
+
+    multi_output_map_[node] = {
+        ng_normalized_data,
+        std::make_shared<ngraph::op::StopGradient>(ng_batch_mean),
+        std::make_shared<ngraph::op::StopGradient>(ng_batch_var)};
+
+    return ng_normalized_data;
+  };
+
   // batch norm operation
   ngraph_op_funcs_["BatchNorm"] = [this](const NodePtr& node) -> NgraphNodePtr {
     if (node->multi_output_index_ >= 0) {
@@ -1413,11 +1443,9 @@ void Emitter::CreateLayerOps() {
                                         (node->dtype_ == mshadow::kFloat32);
     auto var_to_invstd = [&eps](const NgraphNodePtr& ng_var) -> NgraphNodePtr {
       const NgraphNodePtr ng_one =
-          makeConstant(ng_var->get_element_type(),
-                       ng_var->get_shape(), 1);
+          makeConstant(ng_var->get_element_type(), ng_var->get_shape(), 1);
       const NgraphNodePtr ng_eps =
-          makeConstant(ng_var->get_element_type(),
-                       ng_var->get_shape(), eps);
+          makeConstant(ng_var->get_element_type(), ng_var->get_shape(), eps);
       return ng_one / std::make_shared<ngraph::op::Sqrt>(ng_var + ng_eps);
     };
     //----------------------------------------------------------------------------------------------

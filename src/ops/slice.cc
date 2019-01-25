@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "slice.h"
 #include "../../../../src/operator/tensor/matrix_op-inl.h"
 #include "../ngraph_sgcompiler_utils.h"
-#include "slice.h"
 
 namespace ngraph_bridge {
 NgraphNodePtr get_slice(const NgraphNodePtr& node,

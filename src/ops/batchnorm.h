@@ -49,6 +49,17 @@ NgraphNodePtr create_batchnorm_inference_without_ngraph_bn_op(
     const NgraphNodePtr ng_moving_mean, const NgraphNodePtr ng_moving_var,
     size_t channel_axis);
 
+std::tuple<NgraphNodePtr, NgraphNodePtr, NgraphNodePtr>
+create_layernorm_training_without_ngraph_bn_op(
+    const float epsilon, const NgraphNodePtr ng_maybe_gamma,
+    const NgraphNodePtr ng_beta, const NgraphNodePtr ng_in_data,
+    const size_t channel_axis);
+
+NgraphNodePtr create_layernorm_inference_without_ngraph_bn_op(
+    const float epsilon, const NgraphNodePtr ng_maybe_gamma,
+    const NgraphNodePtr ng_beta, const NgraphNodePtr ng_in_data,
+    const NgraphNodePtr ng_moving_mean, const NgraphNodePtr ng_moving_var,
+    const size_t channel_axis);
 }  // namespace ngraph_bridge
 
 #endif  // MXNET_NGRAPH_OPS_BATCHNORM_H_

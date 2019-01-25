@@ -319,6 +319,8 @@ ngraph::Shape get_vector_plus_axes_shape(const size_t rank,
                                          const size_t vector_axis,
                                          const size_t vector_length);
 
+ngraph::Shape get_reduced_axes_shape(const ngraph::Shape& input_shape,
+                                     const ngraph::AxisVector& reduction_axes);
 // Assume that 'n' has a vector-plus-axes shape.  Return an operator that (if
 // necessary) reshapes
 // 'n' to continue to (still) have a vector-plus-axes shape, with rank

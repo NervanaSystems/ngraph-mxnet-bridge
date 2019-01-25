@@ -124,6 +124,14 @@ static size_t get_vector_axis_index(const ngraph::Shape& s) {
     return std::distance(s.begin(), iter);
   }
 }
+ngraph::Shape get_reduced_axes_shape(const ngraph::Shape& input_shape,
+                                     const ngraph::AxisVector& reduction_axes) {
+  auto out_shape = ngraph::Shape(input_shape.size(), 1);
+  for (auto axis : reduction_axes) {
+    out_shape[axis] = input_shape[axis];
+  }
+  return out_shape;
+}
 
 ngraph::Shape get_vector_plus_axes_shape(const size_t rank,
                                          const size_t vector_axis,
@@ -139,6 +147,7 @@ ngraph::Shape get_vector_plus_axes_shape(const size_t rank,
 }
 
 NgraphNodePtr ensure_vector_only_shape(const NgraphNodePtr n) {
+  std::cout << n << std::endl;
   check(n != nullptr);
   const ngraph::Shape& n_shape = n->get_shape();
 
