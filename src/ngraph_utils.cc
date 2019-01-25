@@ -147,7 +147,6 @@ ngraph::Shape get_vector_plus_axes_shape(const size_t rank,
 }
 
 NgraphNodePtr ensure_vector_only_shape(const NgraphNodePtr n) {
-  std::cout << n << std::endl;
   check(n != nullptr);
   const ngraph::Shape& n_shape = n->get_shape();
 

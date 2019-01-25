@@ -1382,7 +1382,6 @@ void Emitter::CreateLayerOps() {
     const float eps = get_default(node, "eps", 1e-5f);
     const size_t channel_axis =
         get_default_transformed_axis(node, "axis", -1, node->shape_.ndim());
-    std::cout << channel_axis << std::endl;
 
     NgraphNodePtr ng_in_data = op_map_[node->inputs_[0]];
     NgraphNodePtr ng_in_gamma = op_map_[node->inputs_[1]];

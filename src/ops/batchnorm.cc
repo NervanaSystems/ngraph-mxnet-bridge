@@ -62,9 +62,6 @@ static NgraphNodePtr create_batchnorm_basic_computation_nodes(
     auto channel_axes = ngraph::Shape(1);
     std::set_difference(all_axes.begin(), all_axes.end(), axes.begin(),
                         axes.end(), channel_axes.begin());
-    std::cout << "all_axes" << all_axes << std::endl;
-    std::cout << "axes" << axes << std::endl;
-    std::cout << "channel_axes" << channel_axes << std::endl;
     channel_axis = channel_axes[0];
   } else {
     check(axes.size() == batch_data_shape.size() - 1);
@@ -88,10 +85,6 @@ static NgraphNodePtr create_batchnorm_basic_computation_nodes(
   if (ng_maybe_gamma) {
     const NgraphNodePtr ng_gamma_shaped = ensure_vector_plus_axes_shape(
         ng_maybe_gamma, batch_data_rank, channel_axis);
-    std::cout << channel_axis << std::endl;
-    std::cout << "beta " << ng_beta_shaped->get_shape() << std::endl;
-    std::cout << "gamma " << ng_gamma_shaped->get_shape() << std::endl;
-
     ng_post_gamma_result = make_with_numpy_broadcast<ngraph::op::Multiply>(
         ng_post_simply_normalized, ng_gamma_shaped);
   } else {
@@ -191,7 +184,6 @@ ngraph::AxisVector channel_to_inverted_axes(const size_t rank,
       axes.push_back(i);
     }
   }
-  std::cout << "channel_axes " << axes << std::endl;
   return axes;
 }
 
@@ -200,7 +192,6 @@ create_layernorm_training_without_ngraph_bn_op(
     const float epsilon, const NgraphNodePtr ng_maybe_gamma,
     const NgraphNodePtr ng_beta, const NgraphNodePtr ng_in_data,
     const size_t channel_axis) {
-  std::cout << "channel_axis " << channel_axis << std::endl;
   return create_normalization_subgraph(
       epsilon, ng_maybe_gamma, ng_beta, ng_in_data,
       channel_to_inverted_axes(ng_in_data->get_shape().size(), channel_axis),
