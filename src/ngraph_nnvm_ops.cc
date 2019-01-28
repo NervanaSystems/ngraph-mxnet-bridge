@@ -58,18 +58,10 @@ void update_aux_vals(const std::shared_ptr<Graph> &graph,
 }
 
 void compile_if_needed(std::shared_ptr<Graph> graph, int mode) {
-  if (mode == static_cast<int>(GraphExeMode::kTrain)) {
-    if (graph->ngraph_forward[mode] == nullptr) {
+  if (graph->ngraph_backward[mode] == nullptr) {
       CompileForwardBackward(graph, graph->fprop_cache->fprop,
                              graph->fprop_cache->bprop, GraphExeMode::kTrain,
                              *(graph->fprop_cache));
-    }
-  } else {
-    if (graph->ngraph_forward[mode] == nullptr) {
-      CompileForwardBackward(graph, graph->fprop_cache->fprop,
-                             graph->fprop_cache->bprop, GraphExeMode::kTrain,
-                             *(graph->fprop_cache));
-    }
   }
 }
 
@@ -155,6 +147,9 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
   if (!graph->need_grad) {
     return;
   }
+  
+  bool is_train = ctx.is_train;
+  
   graph->tensor_bwd_index_cur_ = 0;
 
   // only expect backward is called in training mode
@@ -196,12 +191,22 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
     }
   }
   check(req.size() == outputs.size());
-  auto results = get_tensors(
-      outputs, graph, false,
-      graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardOutput)],
-      graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardOutput)], &req,
-      graph->is_reuse_mem);
-
+  TensorVector results;
+  if (is_train) {
+    results = get_tensors(
+        outputs, graph, false,
+        graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardOutput)],
+        graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardOutput)], &req,
+        graph->is_reuse_mem);
+  } else {
+    results = get_tensors(
+        std::vector<mxnet::NDArray>(outputs.begin(),
+                                    outputs.begin() + graph->num_outputs_),
+        graph, false,
+        graph->bool_nodes_[mode][(int)(NodeReferences::kBackwardOutput)],
+        graph->scalar_nodes_[mode][(int)(NodeReferences::kBackwardOutput)], &req,
+        graph->is_reuse_mem);
+  }
   check(graph->ngraph_backward[mode] != nullptr);
   check(placeholders.size() ==
         graph->ngraph_backward[mode]->get_parameters().size());
