@@ -62,14 +62,15 @@ extern const bool ngraph_tensor_recreate;
 // we do this because the MXNet CHECK family of Macros intermittently
 // returns SIGSEGV or SIGABRT instead of actdually throwing an
 // error, and we need negative test cases, thus we sidstep the Macros
-inline void check(bool good) {
+inline void _check(bool good, std::string file, int line) {
   if (!good) {
     throw std::runtime_error(
         std::string("NGRAPH_BRIDGE: Ran into an error at ") +
-        std::to_string(__LINE__) + std::string(" in file ") +
-        std::string(__FILE__));
+        std::to_string(line) + std::string(" in file ") +
+        file);
   }
 }
+#define ngraph_check(good) ngraph_bridge::_check(good, __FILE__, __LINE__);
 
 // simple timer for sequential blocks of code
 class Timer {
