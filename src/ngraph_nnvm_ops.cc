@@ -64,6 +64,12 @@ void compile_if_needed(std::shared_ptr<Graph> graph, int mode) {
                              graph->fprop_cache->bprop, GraphExeMode::kTrain,
                              *(graph->fprop_cache));
     }
+  } else {
+    if (graph->ngraph_forward[mode] == nullptr) {
+      CompileForwardBackward(graph, graph->fprop_cache->fprop,
+                             graph->fprop_cache->bprop, GraphExeMode::kTrain,
+                             *(graph->fprop_cache));
+    }
   }
 }
 

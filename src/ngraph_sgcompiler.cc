@@ -367,7 +367,7 @@ void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
   auto f = MakeForwardFunction(sub_graph);
 
   std::shared_ptr<ngraph::Function> maybe_bf;
-  if (exe_mode_ == GraphExeMode::kTrain) {
+  //if (exe_mode_ == GraphExeMode::kTrain) {
     maybe_bf = MakeBackwardFunction(sub_graph, f);
     if (ngraph_log_graph()) {
       dump_graph(maybe_bf, __func__, "pre-optimized-bprop");
@@ -376,7 +376,7 @@ void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
     // OptimizeGraph's real benefit comes from optimizing the fprop cache, so we
     // only call it when we're in training mode...
     OptimizeGraph(sub_graph, f, maybe_bf, exe_mode_);
-  }
+  //}
 
   if (ngraph_log_graph()) {
     dump_graph(f, __func__, "post-optimized-fprop");
