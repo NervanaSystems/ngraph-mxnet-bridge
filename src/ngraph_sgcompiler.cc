@@ -355,6 +355,7 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeBackwardFunction(
 // Compile a Subgraph into ngraph forward and backward call frames
 void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
   auto backend = sub_graph->get_backend();
+  const int mode = static_cast<int>(exe_mode_);
 
   // initalize a placeholder order vector for this subgraph
   for (auto i : sub_graph->inputs_) placeholder_order_.push_back(i);
@@ -387,30 +388,30 @@ void SGCompiler::CompileSubgraph(std::shared_ptr<Graph> sub_graph) {
   }
 
   if (sub_graph->enable_fprop_cache && exe_mode_ == GraphExeMode::kTrain) {
-    sub_graph->fprop_cache =
+    sub_graph->fprop_cache[mode] =
         std::make_shared<ngraph::FpropCache>(ngraph::cache_fprop(f, maybe_bf));
 
     if (ngraph_log_graph()) {
-      dump_graph(sub_graph->fprop_cache->fprop, __func__, "fprop_cache.fprop");
-      dump_graph(sub_graph->fprop_cache->bprop, __func__, "fprop_cache.bprop");
+      dump_graph(sub_graph->fprop_cache[mode]->fprop, __func__, "fprop_cache.fprop");
+      dump_graph(sub_graph->fprop_cache[mode]->bprop, __func__, "fprop_cache.bprop");
     }
 
     return;
   }
 
   if (exe_mode_ == GraphExeMode::kTrain) {
-    sub_graph->fprop_cache->fprop = f;
-    sub_graph->fprop_cache->bprop = maybe_bf;
-    sub_graph->fprop_cache->node_param_map =
+    sub_graph->fprop_cache[mode]->fprop = f;
+    sub_graph->fprop_cache[mode]->bprop = maybe_bf;
+    sub_graph->fprop_cache[mode]->node_param_map =
         std::make_shared<ngraph::NodeMap>();
     return;
   }
 
   ngraph_check(exe_mode_ == GraphExeMode::kInfer);
 
-  sub_graph->fprop_cache->fprop = f;
-  sub_graph->fprop_cache->bprop = MakeBackwardFunction(sub_graph, f);
-  sub_graph->fprop_cache->node_param_map =
+  sub_graph->fprop_cache[mode]->fprop = f;
+  sub_graph->fprop_cache[mode]->bprop = MakeBackwardFunction(sub_graph, f);
+  sub_graph->fprop_cache[mode]->node_param_map =
       std::make_shared<ngraph::NodeMap>();
 
   CompileForward(sub_graph, f, exe_mode_);
