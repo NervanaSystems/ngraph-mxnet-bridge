@@ -221,7 +221,9 @@ class Graph : public Node {
       : Node(NodeType::kGraph, orig_node, name),
         context_(context),
         enable_fprop_cache(enable_fprop_cache) {
-    fprop_cache = std::make_shared<ngraph::FpropCache>();
+    for (int i = 0; i < kGraphExeModeCount; ++i) {
+      fprop_cache[i] = std::make_shared<ngraph::FpropCache>();
+    }
     is_reuse_mem = (get_backend_name(context).find("CPU") == 0) ||
                    (get_backend_name(context).find("GPU") == 0);
   }
@@ -283,7 +285,7 @@ class Graph : public Node {
       return ngraph_forward[static_cast<int>(GraphExeMode::kInfer)]
           ->get_results();
     } else {
-      return fprop_cache->fprop->get_results();
+      return fprop_cache[static_cast<int>(GraphExeMode::kTrain)]->fprop->get_results();
     }
   }
 
@@ -305,7 +307,7 @@ class Graph : public Node {
   std::vector<bool> bool_nodes_[kGraphExeModeCount][kNodeReferencesCount];
   std::vector<bool> scalar_nodes_[kGraphExeModeCount][kNodeReferencesCount];
 
-  std::shared_ptr<ngraph::FpropCache> fprop_cache;
+  std::shared_ptr<ngraph::FpropCache> fprop_cache[kGraphExeModeCount];
 
   const mxnet::Context context_;
 
