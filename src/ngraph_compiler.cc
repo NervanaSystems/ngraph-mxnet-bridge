@@ -36,7 +36,7 @@ namespace ngraph_bridge {
 // TODO(mbrookhart): remove when DEX becomes default
 static int ngraph_dex = setenv("NGRAPH_DEX", "1", true);
 // TODO: remove when ngraph fixes CF issue
-static int ngraph_pass = setenv("NGRAPH_PASS_ENABLES", "ConstantFolding", true);
+static int ngraph_pass = setenv("NGRAPH_PASS_ENABLES", "ConstantFolding;LSTMFusion:0", true);
 
 // Function to create an nnvm node from a ngraph subgraph
 nnvm::NodePtr CreateNNVMNode(std::shared_ptr<Graph> subgraph) {
