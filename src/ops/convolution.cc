@@ -156,7 +156,7 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   // handle non-quantized sg_mkldnn_conv op, has 1 output
   if (node->orig_node_->num_outputs() < 2) {
     return create_sgmkldnn_conv(emitter, node);
-  }
+  } 
 
   // handle quantized sg_mkldnn_conv op, has 3 outputs
   NgraphNodePtr op;
@@ -187,16 +187,24 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
       mkldnn_param.with_bn ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
   auto in_sum =
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
-  auto min = std::make_shared<ngraph::op::Reshape>(
-      emitter->op_map_[node->inputs_[idx++]], ngraph::AxisVector{0},
-      ngraph::Shape{});
-  auto max = std::make_shared<ngraph::op::Reshape>(
-      emitter->op_map_[node->inputs_[idx++]], ngraph::AxisVector{0},
-      ngraph::Shape{});
+  auto min = emitter->op_map_[node->inputs_[idx++]];
+  auto max = emitter->op_map_[node->inputs_[idx++]];
+  if (min->get_shape() != ngraph::Shape{}) {
+    min = std::make_shared<ngraph::op::Reshape>(min, ngraph::AxisVector{0},
+                                                ngraph::Shape{});
+    max = std::make_shared<ngraph::op::Reshape>(max, ngraph::AxisVector{0},
+                                                ngraph::Shape{});
+  }
   auto sum_min =
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
   auto sum_max =
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
+  /* auto sum_min = */
+  /*     mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] :
+   * nullptr; */
+  /* auto sum_max = */
+  /*     mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] :
+   * nullptr; */
 
   auto conv_inputs = get_conv_inputs(data, filter, bias, conv_param);
   auto fshape = conv_inputs.filter->get_shape();
@@ -206,11 +214,13 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   auto max_conv =
       makeConstant(ngraph::element::f32, ngraph::Shape{},
                    std::to_string(mkldnn_param.max_calib_range.value()));
+  auto eps = makeConstant(ngraph::element::f32, ngraph::Shape{},
+                          std::to_string(bn_param->eps));
   op = ngraph::builder::ScaledQuantizedConvolutionFusion(
-      conv_inputs.data, conv_inputs.filter, bias, gamma, beta, mean, var,
+      conv_inputs.data, conv_inputs.filter, bias, gamma, beta, mean, var, eps,
       in_sum, min, max, sum_min, sum_max, min_conv, max_conv,
       conv_inputs.stride, conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad,
-      conv_inputs.dilate, true, true);
+      conv_inputs.dilate, mkldnn_param.with_relu, mkldnn_param.with_bn);
   emitter->multi_output_map_[node] = {op, min, max};
 
   return op;

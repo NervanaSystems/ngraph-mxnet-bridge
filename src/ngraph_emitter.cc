@@ -1417,11 +1417,9 @@ void Emitter::CreateLayerOps() {
                                         (node->dtype_ == mshadow::kFloat32);
     auto var_to_invstd = [&eps](const NgraphNodePtr& ng_var) -> NgraphNodePtr {
       const NgraphNodePtr ng_one =
-          makeConstant(ng_var->get_element_type(),
-                       ng_var->get_shape(), 1);
+          makeConstant(ng_var->get_element_type(), ng_var->get_shape(), 1);
       const NgraphNodePtr ng_eps =
-          makeConstant(ng_var->get_element_type(),
-                       ng_var->get_shape(), eps);
+          makeConstant(ng_var->get_element_type(), ng_var->get_shape(), eps);
       return ng_one / std::make_shared<ngraph::op::Sqrt>(ng_var + ng_eps);
     };
     //----------------------------------------------------------------------------------------------
@@ -1824,10 +1822,12 @@ void Emitter::CreateLayerOps() {
     const auto& param =
         nnvm::get<mxnet::op::DequantizeParam>(node->orig_node_->attrs.parsed);
     auto data = op_map_[node->inputs_[0]];
-    auto min = std::make_shared<ngraph::op::Reshape>(
-        op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{});
-    auto max = std::make_shared<ngraph::op::Reshape>(
-        op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{});
+    auto min = op_map_[node->inputs_[1]];
+    auto max = op_map_[node->inputs_[2]];
+    /* auto min = std::make_shared<ngraph::op::Reshape>( */
+    /*     op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{}); */
+    /* auto max = std::make_shared<ngraph::op::Reshape>( */
+    /*     op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{}); */
 
     auto op = ngraph::builder::ScaledDequantize(
         data, min, max, getType(param.out_type), ngraph::AxisSet{});
@@ -1842,12 +1842,14 @@ void Emitter::CreateLayerOps() {
     }
     auto input = op_map_[node->inputs_[0]];
     auto params = PoolingParams(node, input);
-    auto arg1 = op_map_[node->inputs_[1]];
-    auto arg2 = op_map_[node->inputs_[2]];
-    auto min = std::make_shared<ngraph::op::Reshape>(
-        arg1, ngraph::AxisVector{0}, ngraph::Shape{});
-    auto max = std::make_shared<ngraph::op::Reshape>(
-        arg2, ngraph::AxisVector{0}, ngraph::Shape{});
+    auto min = op_map_[node->inputs_[1]];
+    auto max = op_map_[node->inputs_[2]];
+    /* if (min->get_shape() != ngraph::Shape{}) { */
+    /*   min = std::make_shared<ngraph::op::Reshape>(min, ngraph::AxisVector{0}, */
+    /*                                               ngraph::Shape{}); */
+    /*   max = std::make_shared<ngraph::op::Reshape>(max, ngraph::AxisVector{0}, */
+    /*                                               ngraph::Shape{}); */
+    /* } */
     auto type = get_default(node, "pool_type", std::string("max"));
     auto apad = asymetric_padding(input->get_shape(), params);
     if (type == "max") {
@@ -1861,7 +1863,7 @@ void Emitter::CreateLayerOps() {
       throw std::runtime_error(
           "NGRAPH_BRIDGE: Quantized Pooling unsupported type: " + type);
     }
-    multi_output_map_[node] = {op, arg1, arg2};
+    multi_output_map_[node] = {op, min, max};
 
     return op;
   };
