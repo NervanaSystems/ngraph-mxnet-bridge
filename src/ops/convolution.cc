@@ -199,13 +199,7 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
   auto sum_max =
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
-  /* auto sum_min = */
-  /*     mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] :
-   * nullptr; */
-  /* auto sum_max = */
-  /*     mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] :
-   * nullptr; */
-
+  
   auto conv_inputs = get_conv_inputs(data, filter, bias, conv_param);
   auto fshape = conv_inputs.filter->get_shape();
   auto min_conv =

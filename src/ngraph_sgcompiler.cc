@@ -280,7 +280,7 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeForwardFunction(
       exe_mode_ == GraphExeMode::kTrain) {
     ngraph::pass::Manager pass_manager;
     pass_manager.register_pass<ngraph::runtime::cpu::pass::CPUFusion>(
-        ngraph::runtime::cpu::pass::CPUFusion::DIFFERENTIABLE_FUSIONS);
+        ngraph::pass::DIFFERENTIABLE_FUSIONS);
     pass_manager.run_passes(func);
   }
 #endif

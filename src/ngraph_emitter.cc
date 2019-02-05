@@ -1824,10 +1824,6 @@ void Emitter::CreateLayerOps() {
     auto data = op_map_[node->inputs_[0]];
     auto min = op_map_[node->inputs_[1]];
     auto max = op_map_[node->inputs_[2]];
-    /* auto min = std::make_shared<ngraph::op::Reshape>( */
-    /*     op_map_[node->inputs_[1]], ngraph::AxisVector{0}, ngraph::Shape{}); */
-    /* auto max = std::make_shared<ngraph::op::Reshape>( */
-    /*     op_map_[node->inputs_[2]], ngraph::AxisVector{0}, ngraph::Shape{}); */
 
     auto op = ngraph::builder::ScaledDequantize(
         data, min, max, getType(param.out_type), ngraph::AxisSet{});
@@ -1844,12 +1840,6 @@ void Emitter::CreateLayerOps() {
     auto params = PoolingParams(node, input);
     auto min = op_map_[node->inputs_[1]];
     auto max = op_map_[node->inputs_[2]];
-    /* if (min->get_shape() != ngraph::Shape{}) { */
-    /*   min = std::make_shared<ngraph::op::Reshape>(min, ngraph::AxisVector{0}, */
-    /*                                               ngraph::Shape{}); */
-    /*   max = std::make_shared<ngraph::op::Reshape>(max, ngraph::AxisVector{0}, */
-    /*                                               ngraph::Shape{}); */
-    /* } */
     auto type = get_default(node, "pool_type", std::string("max"));
     auto apad = asymetric_padding(input->get_shape(), params);
     if (type == "max") {
