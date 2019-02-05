@@ -1541,7 +1541,7 @@ void Emitter::CreateLayerOps() {
       }
     }
 
-    check(false && "UNEXPECTED: Unhandled BatchNorm mode.");
+    ngraph_check(false && "UNEXPECTED: Unhandled BatchNorm mode.");
     return {};
   };
 

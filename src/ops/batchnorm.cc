@@ -38,9 +38,9 @@ static NgraphNodePtr create_batchnorm_basic_computation_nodes(
   const size_t batch_data_rank = batch_data_shape.size();
 
   const ngraph::element::Type et = ng_in_data->get_element_type();
-  check(ng_beta->get_element_type() == et);
+  ngraph_check(ng_beta->get_element_type() == et);
 
-  check(channel_axis < batch_data_rank);
+  ngraph_check(channel_axis < batch_data_rank);
   const size_t channel_axis_length = batch_data_shape[channel_axis];
 
   // Get our input tensors / constants into the required shape...
@@ -98,9 +98,9 @@ create_batchnorm_training_without_ngraph_bn_op(
   const size_t batch_data_rank = batch_data_shape.size();
 
   const ngraph::element::Type et = ng_in_data->get_element_type();
-  check(ng_beta->get_element_type() == et);
+  ngraph_check(ng_beta->get_element_type() == et);
 
-  check(channel_axis < batch_data_rank);
+  ngraph_check(channel_axis < batch_data_rank);
   const size_t channel_axis_length = batch_data_shape[channel_axis];
 
   const ngraph::Shape channel_vector_plus_axes_shape =
@@ -141,7 +141,7 @@ NgraphNodePtr create_batchnorm_inference_without_ngraph_bn_op(
   const ngraph::Shape& batch_data_shape = ng_in_data->get_shape();
   const size_t batch_data_rank = batch_data_shape.size();
 
-  check(channel_axis < batch_data_rank);
+  ngraph_check(channel_axis < batch_data_rank);
 
   const NgraphNodePtr ng_normalized_batch =
       create_batchnorm_basic_computation_nodes(

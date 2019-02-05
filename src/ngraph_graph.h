@@ -238,6 +238,8 @@ class Graph : public Node {
         }
       }
     }
+    std::unordered_set<NodePtr> visited;
+    clear_nodes(visited);
   }
 
   std::string createNodeLabel() override {
@@ -314,6 +316,11 @@ class Graph : public Node {
   std::vector<NodePtr> outputs_;
   std::vector<std::shared_ptr<OutputElement>> output_elements_;
   std::vector<bool> input_is_weight_;
+  bool first_iter = false;
+  std::vector<std::shared_ptr<ngraph::runtime::Tensor>> tensors_fwd_;
+  size_t tensor_fwd_index_cur_ = 0;
+  std::vector<std::shared_ptr<ngraph::runtime::Tensor>> tensors_bwd_;
+  size_t tensor_bwd_index_cur_ = 0;
   bool zero_grad = false;
   // By default, we assume need_grad is always true
   // we only know grad_req for Paritition Graph passes, so
