@@ -271,8 +271,9 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
                     ? ngraph::element::i8
                     : ngraph::element::u8);
   auto out_scale = ngraph::builder::quantization_util::get_scale(
-      min_conv, max_conv,
-      mkldnn_param.with_relu ? ngraph::element::u8 : ngraph::element::i8);
+      min_conv, max_conv, (mkldnn_param.with_relu || mkldnn_param.with_sum)
+                              ? ngraph::element::u8
+                              : ngraph::element::i8);
   auto requantization_scale = data_scale * weight_scale / out_scale;
   auto round_mode = ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
   if (conv_inputs.bias != nullptr) {
