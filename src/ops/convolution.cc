@@ -18,7 +18,9 @@
 #include "../../../../src/operator/nn/convolution-inl.h"
 #include "convolution.h"
 
+#include <ngraph/builder/make_constant.hpp>
 #include <ngraph/builder/quantization.hpp>
+#include <ngraph/builder/quantization_util.hpp>
 #include "../ngraph_emitter.h"
 #include "../ngraph_emitter_utils.h"
 #include "../ngraph_nnvm_ops.h"
@@ -41,9 +43,9 @@ struct ConvInputs {
   size_t groups;
 };
 
-ConvInputs get_conv_inputs(NgraphNodePtr data, NgraphNodePtr filter,
-                           NgraphNodePtr bias,
-                           const mxnet::op::ConvolutionParam& param) {
+static ConvInputs get_conv_inputs(NgraphNodePtr data, NgraphNodePtr filter,
+                                  NgraphNodePtr bias,
+                                  const mxnet::op::ConvolutionParam& param) {
   ConvInputs conv_inputs;
   conv_inputs.data = data;
   conv_inputs.filter = filter;
@@ -56,8 +58,8 @@ ConvInputs get_conv_inputs(NgraphNodePtr data, NgraphNodePtr filter,
   conv_inputs.groups = param.num_group;
   return conv_inputs;
 }
-ConvInputs get_conv_inputs(Emitter* emitter, const NodePtr& node,
-                           const mxnet::op::ConvolutionParam& param) {
+static ConvInputs get_conv_inputs(Emitter* emitter, const NodePtr& node,
+                                  const mxnet::op::ConvolutionParam& param) {
   auto data = emitter->op_map_[node->inputs_[0]];
   auto filter = emitter->op_map_[node->inputs_[1]];
   NgraphNodePtr bias =
@@ -156,7 +158,7 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   // handle non-quantized sg_mkldnn_conv op, has 1 output
   if (node->orig_node_->num_outputs() < 2) {
     return create_sgmkldnn_conv(emitter, node);
-  } 
+  }
 
   // handle quantized sg_mkldnn_conv op, has 3 outputs
   NgraphNodePtr op;
@@ -175,6 +177,10 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   size_t idx = 0;
   auto data = emitter->op_map_[node->inputs_[idx++]];
   auto filter = emitter->op_map_[node->inputs_[idx++]];
+  if (filter->get_shape().size() != 4) {
+    throw std::runtime_error(
+        "NGRAPH_BRIDGE: Quantized Convolution unsupported weight shape");
+  }
   auto bias =
       conv_param.no_bias ? nullptr : emitter->op_map_[node->inputs_[idx++]];
   auto gamma =
@@ -189,6 +195,8 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
   auto min = emitter->op_map_[node->inputs_[idx++]];
   auto max = emitter->op_map_[node->inputs_[idx++]];
+  auto min_result = min;
+  auto max_result = max;
   if (min->get_shape() != ngraph::Shape{}) {
     min = std::make_shared<ngraph::op::Reshape>(min, ngraph::AxisVector{0},
                                                 ngraph::Shape{});
@@ -199,7 +207,14 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
   auto sum_max =
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
-  
+
+  if (mkldnn_param.with_sum && sum_min->get_shape() != ngraph::Shape{}) {
+    sum_min = std::make_shared<ngraph::op::Reshape>(
+        sum_min, ngraph::AxisVector{0}, ngraph::Shape{});
+    sum_max = std::make_shared<ngraph::op::Reshape>(
+        sum_max, ngraph::AxisVector{0}, ngraph::Shape{});
+  }
+
   auto conv_inputs = get_conv_inputs(data, filter, bias, conv_param);
   auto fshape = conv_inputs.filter->get_shape();
   auto min_conv =
@@ -210,13 +225,115 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
                    std::to_string(mkldnn_param.max_calib_range.value()));
   auto eps = makeConstant(ngraph::element::f32, ngraph::Shape{},
                           std::to_string(bn_param->eps));
-  op = ngraph::builder::ScaledQuantizedConvolutionFusion(
-      conv_inputs.data, conv_inputs.filter, bias, gamma, beta, mean, var, eps,
-      in_sum, min, max, sum_min, sum_max, min_conv, max_conv,
-      conv_inputs.stride, conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad,
-      conv_inputs.dilate, mkldnn_param.with_relu, mkldnn_param.with_bn);
-  emitter->multi_output_map_[node] = {op, min, max};
 
+  // BN fuse
+  if (mkldnn_param.with_bn) {
+    auto var_eps = std::make_shared<ngraph::op::Add>(
+        var, std::make_shared<ngraph::op::Broadcast>(eps, var->get_shape(),
+                                                     ngraph::AxisSet{0}));
+    auto sqrt_var_eps = std::make_shared<ngraph::op::Sqrt>(var_eps);
+
+    auto alpha = std::make_shared<ngraph::op::Divide>(gamma, sqrt_var_eps);
+    if (conv_inputs.bias != nullptr) {
+      conv_inputs.bias = std::make_shared<ngraph::op::Add>(
+          beta, std::make_shared<ngraph::op::Multiply>(
+                    alpha, std::make_shared<ngraph::op::Subtract>(
+                               conv_inputs.bias, mean)));
+    }
+
+    auto weight_scaling =
+        std::make_shared<ngraph::op::Divide>(gamma, sqrt_var_eps);
+    conv_inputs.filter = std::make_shared<ngraph::op::Multiply>(
+        conv_inputs.filter, std::make_shared<ngraph::op::Broadcast>(
+                                weight_scaling, conv_inputs.filter->get_shape(),
+                                ngraph::AxisSet{1, 2, 3}));
+  }
+
+  // quantize weights/bias
+  auto min_filter = std::make_shared<ngraph::op::Min>(conv_inputs.filter,
+                                                      ngraph::AxisSet{1, 2, 3});
+  auto max_filter = std::make_shared<ngraph::op::Max>(conv_inputs.filter,
+                                                      ngraph::AxisSet{1, 2, 3});
+  auto q_shape = min_filter->get_shape();
+  min =
+      std::make_shared<ngraph::op::Broadcast>(min, q_shape, ngraph::AxisSet{0});
+  max =
+      std::make_shared<ngraph::op::Broadcast>(max, q_shape, ngraph::AxisSet{0});
+  min_conv = std::make_shared<ngraph::op::Broadcast>(min_conv, q_shape,
+                                                     ngraph::AxisSet{0});
+  max_conv = std::make_shared<ngraph::op::Broadcast>(max_conv, q_shape,
+                                                     ngraph::AxisSet{0});
+
+  auto weight_scale = ngraph::builder::quantization_util::get_scale(
+      min_filter, max_filter, ngraph::element::i8);
+  auto data_scale = ngraph::builder::quantization_util::get_scale(
+      min, max, conv_inputs.data->get_element_type() == ngraph::element::i8
+                    ? ngraph::element::i8
+                    : ngraph::element::u8);
+  auto out_scale = ngraph::builder::quantization_util::get_scale(
+      min_conv, max_conv,
+      mkldnn_param.with_relu ? ngraph::element::u8 : ngraph::element::i8);
+  auto requantization_scale = data_scale * weight_scale / out_scale;
+  auto round_mode = ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
+  if (conv_inputs.bias != nullptr) {
+    conv_inputs.bias = std::make_shared<ngraph::op::Quantize>(
+        conv_inputs.bias, weight_scale * data_scale,
+        ngraph::builder::make_constant(ngraph::element::i32, q_shape, 0),
+        ngraph::element::i32, ngraph::AxisSet{0}, round_mode);
+  }
+  auto new_weights_i8 = std::make_shared<ngraph::op::Quantize>(
+      conv_inputs.filter, weight_scale,
+      ngraph::builder::make_constant(ngraph::element::i8, q_shape, 0),
+      ngraph::element::i8, ngraph::AxisSet{0}, round_mode);
+
+  // invoke quantized conv ops
+  if (conv_inputs.bias == nullptr) {
+    if (mkldnn_param.with_relu) {
+      op = std::make_shared<ngraph::op::QuantizedConvolutionRelu>(
+          conv_inputs.data, new_weights_i8, conv_inputs.stride,
+          conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad,
+          conv_inputs.dilate, requantization_scale);
+    } else {
+      op = std::make_shared<ngraph::op::QuantizedConvolution>(
+          conv_inputs.data, new_weights_i8, conv_inputs.stride,
+          conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad,
+          conv_inputs.dilate, requantization_scale);
+    }
+  }
+  // i8.conv.bias -> sum -> relu
+  if (op == nullptr && in_sum != nullptr) {
+    sum_min = std::make_shared<ngraph::op::Broadcast>(sum_min, q_shape,
+                                                      ngraph::AxisSet{0});
+    sum_max = std::make_shared<ngraph::op::Broadcast>(sum_max, q_shape,
+                                                      ngraph::AxisSet{0});
+    auto sum_scale = ngraph::builder::quantization_util::get_sum_scale(
+        min_conv, max_conv, sum_min, sum_max);
+
+    if (in_sum->get_element_type() == ngraph::element::i8) {
+      op = std::make_shared<ngraph::op::QuantizedConvolutionBiasSignedAdd>(
+          conv_inputs.data, new_weights_i8, conv_inputs.bias, in_sum,
+          conv_inputs.stride, conv_inputs.dilate, conv_inputs.pad,
+          conv_inputs.pad, conv_inputs.dilate, requantization_scale, sum_scale,
+          true);
+      op = std::make_shared<ngraph::op::Convert>(op, ngraph::element::u8);
+    } else {
+      op = std::make_shared<ngraph::op::QuantizedConvolutionBiasAdd>(
+          conv_inputs.data, new_weights_i8, conv_inputs.bias, in_sum,
+          conv_inputs.stride, conv_inputs.dilate, conv_inputs.pad,
+          conv_inputs.pad, conv_inputs.dilate, requantization_scale, sum_scale,
+          true);
+    }
+  }
+
+  // i8.conv_bias -> relu
+  if (op == nullptr) {
+    op = std::make_shared<ngraph::op::QuantizedConvolutionBias>(
+        conv_inputs.data, new_weights_i8, conv_inputs.bias, conv_inputs.stride,
+        conv_inputs.dilate, conv_inputs.pad, conv_inputs.pad,
+        conv_inputs.dilate, requantization_scale, mkldnn_param.with_relu);
+  }
+
+  emitter->multi_output_map_[node] = {op, min_result, max_result};
   return op;
 }
 

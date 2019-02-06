@@ -1824,6 +1824,12 @@ void Emitter::CreateLayerOps() {
     auto data = op_map_[node->inputs_[0]];
     auto min = op_map_[node->inputs_[1]];
     auto max = op_map_[node->inputs_[2]];
+    if (min->get_shape() != ngraph::Shape{}) {
+      min = std::make_shared<ngraph::op::Reshape>(min, ngraph::AxisVector{0},
+                                                  ngraph::Shape{});
+      max = std::make_shared<ngraph::op::Reshape>(max, ngraph::AxisVector{0},
+                                                  ngraph::Shape{});
+    }
 
     auto op = ngraph::builder::ScaledDequantize(
         data, min, max, getType(param.out_type), ngraph::AxisSet{});
