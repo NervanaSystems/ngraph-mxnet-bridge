@@ -67,7 +67,7 @@ endif()
 ExternalProject_Add(
 	ext_ngraph
 	GIT_REPOSITORY https://github.com/NervanaSystems/ngraph.git
-	GIT_TAG 1efd0bfd49885f14bfed3548f4a909f29614d1f7
+	GIT_TAG 3af90a2291004d3bb004535253067420f5645bea
 	PREFIX ngraph
 	UPDATE_COMMAND ""
 	CMAKE_ARGS ${NGRAPH_EXTRA_CMAKE_FLAGS}
