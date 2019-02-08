@@ -33,8 +33,6 @@ std::string exe_mode_to_string(int mode) {
   }
 }
 void NGraphStats::dump(std::ostream& out) {
-  out << "nGraph profiling not supported for DEX mode." << std::endl;
-#if 0
   if (ngraph_log_timer()) {
     // accumulator for forward/backward/Combined summary at the end
     const int pass_count = 3;
@@ -62,7 +60,6 @@ void NGraphStats::dump(std::ostream& out) {
             print_perf_data(out, perf_data);
             pass_perf[pass].insert(pass_perf[pass].end(), perf_data.begin(),
                                    perf_data.end());
-            if (p.name() == "") out << p.name();
           }
         };
 
@@ -91,7 +88,6 @@ void NGraphStats::dump(std::ostream& out) {
     }
     out << std::string(total_column_, '#') << "\n";
   }
-#endif
 }
 
 struct TimeCount {

@@ -30,6 +30,7 @@
 #include <ngraph/pass/manager.hpp>
 #include <ngraph/pass/reshape_elimination.hpp>
 #include <ngraph/runtime/cpu/pass/cpu_fusion.hpp>
+#include <ngraph/runtime/cpu/pass/cpu_mat_fusion.hpp>
 #include <ngraph/serializer.hpp>
 
 #include "ngraph_graph.h"
@@ -279,8 +280,10 @@ std::shared_ptr<ngraph::Function> SGCompiler::MakeForwardFunction(
   if (get_backend_name(sub_graph->context_) == "CPU" &&
       exe_mode_ == GraphExeMode::kTrain) {
     ngraph::pass::Manager pass_manager;
+    pass_manager.register_pass<ngraph::runtime::cpu::pass::CPUBatchFusion>(
+        ngraph::pass::DIFFERENTIABLE_FUSIONS);
     pass_manager.register_pass<ngraph::runtime::cpu::pass::CPUFusion>(
-        ngraph::runtime::cpu::pass::CPUFusion::DIFFERENTIABLE_FUSIONS);
+        ngraph::pass::DIFFERENTIABLE_FUSIONS);
     pass_manager.run_passes(func);
   }
 #endif
