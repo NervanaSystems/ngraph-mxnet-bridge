@@ -195,8 +195,6 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
       mkldnn_param.with_sum ? emitter->op_map_[node->inputs_[idx++]] : nullptr;
   auto min = emitter->op_map_[node->inputs_[idx++]];
   auto max = emitter->op_map_[node->inputs_[idx++]];
-  auto min_result = min;
-  auto max_result = max;
   if (min->get_shape() != ngraph::Shape{}) {
     min = std::make_shared<ngraph::op::Reshape>(min, ngraph::AxisVector{0},
                                                 ngraph::Shape{});
@@ -217,10 +215,10 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
 
   auto conv_inputs = get_conv_inputs(data, filter, bias, conv_param);
   auto fshape = conv_inputs.filter->get_shape();
-  auto min_conv =
+  auto min_result =
       makeConstant(ngraph::element::f32, ngraph::Shape{},
                    std::to_string(mkldnn_param.min_calib_range.value()));
-  auto max_conv =
+  auto max_result =
       makeConstant(ngraph::element::f32, ngraph::Shape{},
                    std::to_string(mkldnn_param.max_calib_range.value()));
   auto eps = makeConstant(ngraph::element::f32, ngraph::Shape{},
@@ -239,6 +237,9 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
           beta, std::make_shared<ngraph::op::Multiply>(
                     alpha, std::make_shared<ngraph::op::Subtract>(
                                conv_inputs.bias, mean)));
+    } else {
+      conv_inputs.bias = std::make_shared<ngraph::op::Subtract>(
+          beta, std::make_shared<ngraph::op::Multiply>(alpha, mean));
     }
 
     auto weight_scaling =
@@ -259,10 +260,10 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
       std::make_shared<ngraph::op::Broadcast>(min, q_shape, ngraph::AxisSet{0});
   max =
       std::make_shared<ngraph::op::Broadcast>(max, q_shape, ngraph::AxisSet{0});
-  min_conv = std::make_shared<ngraph::op::Broadcast>(min_conv, q_shape,
-                                                     ngraph::AxisSet{0});
-  max_conv = std::make_shared<ngraph::op::Broadcast>(max_conv, q_shape,
-                                                     ngraph::AxisSet{0});
+  auto min_conv = std::make_shared<ngraph::op::Broadcast>(min_result, q_shape,
+                                                          ngraph::AxisSet{0});
+  auto max_conv = std::make_shared<ngraph::op::Broadcast>(max_result, q_shape,
+                                                          ngraph::AxisSet{0});
 
   auto weight_scale = ngraph::builder::quantization_util::get_scale(
       min_filter, max_filter, ngraph::element::i8);
