@@ -278,15 +278,19 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   auto requantization_scale = data_scale * weight_scale / out_scale;
   auto round_mode = ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
   if (conv_inputs.bias != nullptr) {
+    std::vector<int32_t> vz(q_shape[0], 0);
+    auto zi32 = std::make_shared<ngraph::op::Constant>(ngraph::element::i32,
+                                                       q_shape, vz);
     conv_inputs.bias = std::make_shared<ngraph::op::Quantize>(
-        conv_inputs.bias, weight_scale * data_scale,
-        ngraph::builder::make_constant(ngraph::element::i32, q_shape, 0),
-        ngraph::element::i32, ngraph::AxisSet{0}, round_mode);
+        conv_inputs.bias, weight_scale * data_scale, zi32, ngraph::element::i32,
+        ngraph::AxisSet{0}, round_mode);
   }
+  std::vector<int8_t> vz(q_shape[0], 0);
+  auto zi8 =
+      std::make_shared<ngraph::op::Constant>(ngraph::element::i8, q_shape, vz);
   auto new_weights_i8 = std::make_shared<ngraph::op::Quantize>(
-      conv_inputs.filter, weight_scale,
-      ngraph::builder::make_constant(ngraph::element::i8, q_shape, 0),
-      ngraph::element::i8, ngraph::AxisSet{0}, round_mode);
+      conv_inputs.filter, weight_scale, zi8, ngraph::element::i8,
+      ngraph::AxisSet{0}, round_mode);
 
   // invoke quantized conv ops
   if (conv_inputs.bias == nullptr) {
@@ -304,14 +308,12 @@ NgraphNodePtr create_quantized_convolution(Emitter* emitter,
   }
   // i8.conv.bias -> sum -> relu
   if (op == nullptr && in_sum != nullptr) {
-    sum_min = std::make_shared<ngraph::op::Broadcast>(sum_min, q_shape,
-                                                      ngraph::AxisSet{0});
-    sum_max = std::make_shared<ngraph::op::Broadcast>(sum_max, q_shape,
-                                                      ngraph::AxisSet{0});
     auto sum_scale = ngraph::builder::quantization_util::get_sum_scale(
-        min_conv, max_conv, sum_min, sum_max);
+        min_result, max_result, sum_min, sum_max);
 
     if (in_sum->get_element_type() == ngraph::element::i8) {
+      sum_scale = sum_scale * makeConstant(ngraph::element::f32,
+                                           ngraph::Shape{}, std::to_string(2));
       op = std::make_shared<ngraph::op::QuantizedConvolutionBiasSignedAdd>(
           conv_inputs.data, new_weights_i8, conv_inputs.bias, in_sum,
           conv_inputs.stride, conv_inputs.dilate, conv_inputs.pad,

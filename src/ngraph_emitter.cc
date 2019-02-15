@@ -31,6 +31,7 @@
 #include "../../../src/operator/nn/upsampling-inl.h"
 #include "../../../src/operator/quantization/dequantize-inl.h"
 #include "../../../src/operator/quantization/quantize-inl.h"
+#include "../../../src/operator/quantization/quantize_v2-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
@@ -1794,27 +1795,57 @@ void Emitter::CreateLayerOps() {
   ngraph_op_funcs_["LinearRegressionOutput"] = [this](const NodePtr& node) {
     return op_map_[node->inputs_[0]];
   };
-  ngraph_op_funcs_["_contrib_quantize"] = [this](const NodePtr& node) {
+  auto quantize = [](NgraphNodePtr& input, NgraphNodePtr& min,
+                     NgraphNodePtr& max, ngraph::element::Type out_type) {
+    auto min_s = std::make_shared<ngraph::op::Reshape>(
+        min, ngraph::AxisVector{0}, ngraph::Shape{});
+    auto max_s = std::make_shared<ngraph::op::Reshape>(
+        max, ngraph::AxisVector{0}, ngraph::Shape{});
+    auto round_mode =
+        ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
+
+    return ngraph::builder::ScaledQuantize(input, min_s, max_s, out_type,
+                                           ngraph::AxisSet{}, round_mode);
+  };
+  ngraph_op_funcs_["_contrib_quantize"] = [this,
+                                           &quantize](const NodePtr& node) {
     if (node->multi_output_index_ >= 0) {
       return multi_output_map_.at(node->inputs_[0])
           .at(node->multi_output_index_);
     }
     const auto& param =
         nnvm::get<mxnet::op::QuantizeParam>(node->orig_node_->attrs.parsed);
-    auto data = op_map_[node->inputs_[0]];
-    auto arg1 = op_map_[node->inputs_[1]];
-    auto arg2 = op_map_[node->inputs_[2]];
-    auto min = std::make_shared<ngraph::op::Reshape>(
-        arg1, ngraph::AxisVector{0}, ngraph::Shape{});
-    auto max = std::make_shared<ngraph::op::Reshape>(
-        arg2, ngraph::AxisVector{0}, ngraph::Shape{});
-    auto round_mode =
-        ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
+    auto input = op_map_[node->inputs_[0]];
+    auto min = op_map_[node->inputs_[1]];
+    auto max = op_map_[node->inputs_[2]];
+    auto op = quantize(input, min, max, getType(param.out_type));
 
-    auto op = ngraph::builder::ScaledQuantize(
-        data, min, max, getType(param.out_type), ngraph::AxisSet{}, round_mode);
+    multi_output_map_[node] = {op, min, max};
 
-    multi_output_map_[node] = {op, arg1, arg2};
+    return op;
+  };
+  ngraph_op_funcs_["_contrib_quantize_v2"] = [this,
+                                              &quantize](const NodePtr& node) {
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    const auto& param =
+        nnvm::get<mxnet::op::QuantizeV2Param>(node->orig_node_->attrs.parsed);
+    if (!param.min_calib_range.has_value() ||
+        !param.max_calib_range.has_value()) {
+      throw std::runtime_error(
+          "NGRAPH_BRIDGE: _contrib_quantize_v2 unsupported param");
+    }
+    auto input = op_map_[node->inputs_[0]];
+    auto min = makeConstant(ngraph::element::f32, ngraph::Shape{1},
+                            std::to_string(param.min_calib_range.value()));
+    auto max = makeConstant(ngraph::element::f32, ngraph::Shape{1},
+                            std::to_string(param.max_calib_range.value()));
+    auto op =
+        quantize(input, min, max, getType(mxnet::op::GetOutputType(param)));
+
+    multi_output_map_[node] = {op, min, max};
 
     return op;
   };

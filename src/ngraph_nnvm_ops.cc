@@ -129,7 +129,7 @@ void compute_forward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
         graph->ngraph_forward[mode]->get_parameters().size());
   ngraph_check(results.size() == graph->ngraph_forward[mode]->get_results().size());
 
-  backend->call(graph->ngraph_forward[mode], results, placeholders);
+  graph->ngraph_forward[mode]->call(results, placeholders);
   graph->first_iter = false;
   result_to_NDArray(results, req, outputs, !graph->is_reuse_mem);
 
@@ -201,7 +201,7 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
         graph->ngraph_backward[mode]->get_parameters().size());
   ngraph_check(results.size() == graph->ngraph_backward[mode]->get_results().size());
 
-  backend->call(graph->ngraph_backward[mode], results, placeholders);
+  graph->ngraph_backward[mode]->call(results, placeholders);
 
   // reset the forward training compute flag to ensure backward always have
   // updated data from forward
@@ -215,7 +215,7 @@ void compute_backward(const mxnet::OpContext &ctx, std::shared_ptr<Graph> graph,
 
 // check if last node in graph is an op that doesnt need head-gradient
 bool check_zero_grad(const std::shared_ptr<Graph> &graph) {
-  auto size = graph->ngraph_forward[0]->get_ops().size();
+  auto size = graph->ngraph_forward_f[0]->get_ops().size();
   if (size < 1) return false;
 
   // if all of the outputs of the graph don't need gradient calculation,
