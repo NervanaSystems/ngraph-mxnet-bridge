@@ -25,12 +25,17 @@
 #include <utility>
 #include <vector>
 
+#include <ngraph/builder/quantization.hpp>
 #include <ngraph/op/get_output_element.hpp>
 #include <ngraph/op/reverse_sequence.hpp>
 #include "../../../src/operator/nn/upsampling-inl.h"
+#include "../../../src/operator/quantization/dequantize-inl.h"
+#include "../../../src/operator/quantization/quantize-inl.h"
+#include "../../../src/operator/quantization/quantize_v2-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
+#include "ops/convolution.h"
 #include "ops/deconvolution.h"
 #include "ops/slice.h"
 
@@ -1413,11 +1418,9 @@ void Emitter::CreateLayerOps() {
                                         (node->dtype_ == mshadow::kFloat32);
     auto var_to_invstd = [&eps](const NgraphNodePtr& ng_var) -> NgraphNodePtr {
       const NgraphNodePtr ng_one =
-          makeConstant(ng_var->get_element_type(),
-                       ng_var->get_shape(), 1);
+          makeConstant(ng_var->get_element_type(), ng_var->get_shape(), 1);
       const NgraphNodePtr ng_eps =
-          makeConstant(ng_var->get_element_type(),
-                       ng_var->get_shape(), eps);
+          makeConstant(ng_var->get_element_type(), ng_var->get_shape(), eps);
       return ng_one / std::make_shared<ngraph::op::Sqrt>(ng_var + ng_eps);
     };
     //----------------------------------------------------------------------------------------------
@@ -1545,69 +1548,14 @@ void Emitter::CreateLayerOps() {
 
   ngraph_op_funcs_["Convolution"] =
       [this](const NodePtr& node) -> NgraphNodePtr {
-    enum InputName { kData = 0, kWeight, kBias };
-
-    NgraphNodePtr data = op_map_[node->inputs_[kData]];
-    NgraphNodePtr filter = op_map_[node->inputs_[kWeight]];
-
-    // N, channel_in, d1,...,dn
-    const auto data_shape = data->get_shape();
-    // channel_out, channel_in/groups, f1,...,fn
-    const auto filter_shape = filter->get_shape();
-
-    auto n = data_shape.size() - 2;
-    ngraph::CoordinateDiff default_pad(n, 0);
-    ngraph::Strides default_stride(n, 1);
-    ngraph::Strides default_dilate(n, 1);
-
-    auto pad = get_default<ptrdiff_t>(node, "pad", default_pad);
-    auto stride = get_default<size_t>(node, "stride", default_stride);
-    auto dilate = get_default<size_t>(node, "dilate", default_dilate);
-    size_t groups = get_default(node, "num_group", 1);
-
-    NgraphNodePtr convolution = nullptr;
-    if (groups == 1) {
-      convolution = std::make_shared<ngraph::op::Convolution>(
-          data, filter, stride, dilate, pad, pad);
-    } else {
-      std::vector<NgraphNodePtr> convolutions(groups);
-      for (size_t g = 0; g < groups; ++g) {
-        // slice data on channel_in
-        size_t data_slice_step = data_shape[1] / groups;
-        size_t filter_slice_step = filter_shape[0] / groups;
-        auto data_slice = slice_data_on_axis(data, g * data_slice_step,
-                                             data_slice_step, 1, false);
-        auto filter_slice = slice_data_on_axis(filter, g * filter_slice_step,
-                                               filter_slice_step, 0, false);
-        // convolve sliced data and filter
-        // N, channel_out/groups, d'1,...,d'n
-        convolutions[g] = std::make_shared<ngraph::op::Convolution>(
-            data_slice, filter_slice, stride, dilate, pad, pad);
-      }
-
-      // concatenate convolutions on channel_out
-      // N, channel_out, d'1,...,d'n
-      convolution = std::make_shared<ngraph::op::Concat>(convolutions, 1);
-    }
-
-    // no bias param, return
-    if (node->inputs_.size() <= kBias) {
-      return convolution;
-    }
-
-    NgraphNodePtr bias = op_map_[node->inputs_[kBias]];
-
-    // 1, channel_out, 1,...,1
-    ngraph::Shape bias_shape(filter_shape.size(), 1);
-    bias_shape[1] = filter_shape[0];
-
-    ngraph::AxisVector order(1, 0);
-    auto bias_reshape =
-        std::make_shared<ngraph::op::Reshape>(bias, order, bias_shape);
-
-    return ngraph::builder::make_with_numpy_broadcast<ngraph::op::Add>(
-        convolution, bias_reshape);
+    return create_convolution(this, node);
   };
+#if MXNET_USE_MKLDNN == 1
+  ngraph_op_funcs_["_sg_mkldnn_conv"] =
+      [this](const NodePtr& node) -> NgraphNodePtr {
+    return create_quantized_convolution(this, node);
+  };
+#endif
   ngraph_op_funcs_["Deconvolution"] =
       [this](const NodePtr& node) -> NgraphNodePtr {
     NgraphNodePtr data = op_map_[node->inputs_[0]];
@@ -1764,7 +1712,6 @@ void Emitter::CreateLayerOps() {
                                      &asymetric_padding](const NodePtr& node) {
     auto input = op_map_[node->inputs_[0]];
     auto params = PoolingParams(node, input);
-
     return std::make_shared<ngraph::op::MaxPool>(
         input, params.kernel, params.stride, params.pad,
         asymetric_padding(input->get_shape(), params));
@@ -1847,6 +1794,105 @@ void Emitter::CreateLayerOps() {
   };
   ngraph_op_funcs_["LinearRegressionOutput"] = [this](const NodePtr& node) {
     return op_map_[node->inputs_[0]];
+  };
+  auto quantize = [](NgraphNodePtr& input, NgraphNodePtr& min,
+                     NgraphNodePtr& max, ngraph::element::Type out_type) {
+    auto min_s = std::make_shared<ngraph::op::Reshape>(
+        min, ngraph::AxisVector{0}, ngraph::Shape{});
+    auto max_s = std::make_shared<ngraph::op::Reshape>(
+        max, ngraph::AxisVector{0}, ngraph::Shape{});
+    auto round_mode =
+        ngraph::op::Quantize::RoundMode::ROUND_NEAREST_TOWARD_EVEN;
+
+    return ngraph::builder::ScaledQuantize(input, min_s, max_s, out_type,
+                                           ngraph::AxisSet{}, round_mode);
+  };
+  ngraph_op_funcs_["_contrib_quantize"] = [this,
+                                           &quantize](const NodePtr& node) {
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    const auto& param =
+        nnvm::get<mxnet::op::QuantizeParam>(node->orig_node_->attrs.parsed);
+    auto input = op_map_[node->inputs_[0]];
+    auto min = op_map_[node->inputs_[1]];
+    auto max = op_map_[node->inputs_[2]];
+    auto op = quantize(input, min, max, getType(param.out_type));
+
+    multi_output_map_[node] = {op, min, max};
+
+    return op;
+  };
+  ngraph_op_funcs_["_contrib_quantize_v2"] = [this,
+                                              &quantize](const NodePtr& node) {
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    const auto& param =
+        nnvm::get<mxnet::op::QuantizeV2Param>(node->orig_node_->attrs.parsed);
+    if (!param.min_calib_range.has_value() ||
+        !param.max_calib_range.has_value()) {
+      throw std::runtime_error(
+          "NGRAPH_BRIDGE: _contrib_quantize_v2 unsupported param");
+    }
+    auto input = op_map_[node->inputs_[0]];
+    auto min = makeConstant(ngraph::element::f32, ngraph::Shape{1},
+                            std::to_string(param.min_calib_range.value()));
+    auto max = makeConstant(ngraph::element::f32, ngraph::Shape{1},
+                            std::to_string(param.max_calib_range.value()));
+    auto op =
+        quantize(input, min, max, getType(mxnet::op::GetOutputType(param)));
+
+    multi_output_map_[node] = {op, min, max};
+
+    return op;
+  };
+  ngraph_op_funcs_["_contrib_dequantize"] = [this](const NodePtr& node) {
+    const auto& param =
+        nnvm::get<mxnet::op::DequantizeParam>(node->orig_node_->attrs.parsed);
+    auto data = op_map_[node->inputs_[0]];
+    auto min = op_map_[node->inputs_[1]];
+    auto max = op_map_[node->inputs_[2]];
+    if (min->get_shape() != ngraph::Shape{}) {
+      min = std::make_shared<ngraph::op::Reshape>(min, ngraph::AxisVector{0},
+                                                  ngraph::Shape{});
+      max = std::make_shared<ngraph::op::Reshape>(max, ngraph::AxisVector{0},
+                                                  ngraph::Shape{});
+    }
+
+    auto op = ngraph::builder::ScaledDequantize(
+        data, min, max, getType(param.out_type), ngraph::AxisSet{});
+    return op;
+  };
+  ngraph_op_funcs_["_contrib_quantized_pooling"] = [this, &asymetric_padding](
+      const NodePtr& node) {
+    NgraphNodePtr op;
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    auto input = op_map_[node->inputs_[0]];
+    auto params = PoolingParams(node, input);
+    auto min = op_map_[node->inputs_[1]];
+    auto max = op_map_[node->inputs_[2]];
+    auto type = get_default(node, "pool_type", std::string("max"));
+    auto apad = asymetric_padding(input->get_shape(), params);
+    if (type == "max") {
+      op = ngraph::builder::ScaledQuantizedMaxPool(
+          input, params.kernel, params.stride, params.pad, apad, min, max);
+    } else if (type == "avg") {
+      op = ngraph::builder::ScaledQuantizedAvgPool(input, params.kernel,
+                                                   params.stride, params.pad,
+                                                   apad, false, min, max);
+    } else {
+      throw std::runtime_error(
+          "NGRAPH_BRIDGE: Quantized Pooling unsupported type: " + type);
+    }
+    multi_output_map_[node] = {op, min, max};
+
+    return op;
   };
 }
 

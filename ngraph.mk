@@ -67,9 +67,10 @@ endif
 
 #===================================================================================================
 ADD_NGRAPH_LIBDIR_TO_MXNET_RPATH=1
+NGRAPH_TBB_LIB_ := tbb
 ifeq ($(DEBUG), 1)
 	override NGRAPH_EXTRA_CMAKE_FLAGS += -DCMAKE_BUILD_TYPE=Debug
-	override NGRAPH_EXTRA_CMAKE_FLAGS += -DNGRAPH_DEBUG_ENABLE=TRUE
+	NGRAPH_TBB_LIB_ := tbb_debug
 endif
 override NGRAPH_EXTRA_CMAKE_FLAGS += -DNGRAPH_UNIT_TEST_ENABLE=0 -DNGRAPH_TOOLS_ENABLE=0
 
@@ -212,7 +213,7 @@ $(NGRAPH_BRIDGE_OBJ): %.o: ngraph $(NGRAPH_BRIDGE_SRC)
   endif
 
   NGRAPH_COMMON_LIBRARY_LDFLAGS_ := \
-    -ltbb \
+    -l$(NGRAPH_TBB_LIB_) \
     -liomp5 \
     -l$(NGRAPH_MKLML_LIB_) \
     -lmkldnn

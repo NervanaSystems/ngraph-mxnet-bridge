@@ -299,8 +299,10 @@ class Graph : public Node {
   // functions to execute this graph in ngraph.
   // Note: ngraph_backward[GraphExeMode::kInfer] should always be null, but we
   // define it for consisteny.
-  std::shared_ptr<ngraph::Function> ngraph_forward[kGraphExeModeCount];
-  std::shared_ptr<ngraph::Function> ngraph_backward[kGraphExeModeCount];
+  std::shared_ptr<ngraph::runtime::Executable> ngraph_forward[kGraphExeModeCount];
+  std::shared_ptr<ngraph::runtime::Executable> ngraph_backward[kGraphExeModeCount];
+  std::shared_ptr<ngraph::Function> ngraph_forward_f[kGraphExeModeCount];
+  std::shared_ptr<ngraph::Function> ngraph_backward_f[kGraphExeModeCount];
 
   std::vector<bool> bool_nodes_[kGraphExeModeCount][kNodeReferencesCount];
   std::vector<bool> scalar_nodes_[kGraphExeModeCount][kNodeReferencesCount];
