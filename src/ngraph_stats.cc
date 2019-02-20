@@ -49,11 +49,11 @@ void NGraphStats::dump(std::ostream& out) {
         auto backend = g->get_backend();
 
         auto print_perf_for_pass = [&](
-            const std::shared_ptr<ngraph::Function>& func,
+            const std::shared_ptr<ngraph::runtime::Executable>& exec,
             const PassType pass_type) {
           const int pass = static_cast<int>(pass_type);
           std::vector<ngraph::runtime::PerformanceCounter> perf_data =
-              backend->get_performance_data(func);
+              exec->get_performance_data();
           if (perf_data.size() > 0) {
             out << std::string(total_column_, '-') << "\n";
             out << "# " + pass_name[pass] << std::endl;
