@@ -32,6 +32,7 @@
 #include "../../../src/operator/quantization/dequantize-inl.h"
 #include "../../../src/operator/quantization/quantize-inl.h"
 #include "../../../src/operator/quantization/quantize_v2-inl.h"
+#include "../../../src/operator/nn/concat-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
@@ -1864,6 +1865,43 @@ void Emitter::CreateLayerOps() {
 
     auto op = ngraph::builder::ScaledDequantize(
         data, min, max, getType(param.out_type), ngraph::AxisSet{});
+    return op;
+  };
+  ngraph_op_funcs_["_contrib_quantized_concat"] = [this](const NodePtr& node) {
+    if (node->multi_output_index_ >= 0) {
+      return multi_output_map_.at(node->inputs_[0])
+          .at(node->multi_output_index_);
+    }
+    const auto& param =
+        nnvm::get<mxnet::op::ConcatParam>(node->orig_node_->attrs.parsed);
+    ngraph_check(node->inputs_.size() == static_cast<size_t>(param.num_args * 3));
+
+    std::vector<NgraphNodePtr> inputs(param.num_args);
+    std::vector<NgraphNodePtr> mins(param.num_args);
+    std::vector<NgraphNodePtr> maxs(param.num_args);
+
+    for (int i = 0; i < param.num_args; ++i) {
+      inputs[i] = op_map_[node->inputs_[i]];
+      mins[i] = op_map_[node->inputs_[param.num_args + 2 * i]];
+      if (mins[i]->get_shape() != ngraph::Shape{1}) {
+        mins[i] = std::make_shared<ngraph::op::Reshape>(mins[i], ngraph::AxisVector{},
+                                                ngraph::Shape{1});
+      }
+      maxs[i] = op_map_[node->inputs_[param.num_args + 2 * i + 1]];
+      if (maxs[i]->get_shape() != ngraph::Shape{1}) {
+        maxs[i] = std::make_shared<ngraph::op::Reshape>(maxs[i], ngraph::AxisVector{},
+                                                ngraph::Shape{1});
+      }
+    }
+
+    auto min = std::make_shared<ngraph::op::Min>(
+        std::make_shared<ngraph::op::Concat>(mins, 0), ngraph::AxisSet{0});
+    auto max = std::make_shared<ngraph::op::Max>(
+        std::make_shared<ngraph::op::Concat>(maxs, 0), ngraph::AxisSet{0});
+
+    auto op = ngraph::builder::ScaledQuantizedConcat(inputs, param.dim, mins, maxs);
+
+    multi_output_map_[node] = {op, min, max};
     return op;
   };
   ngraph_op_funcs_["_contrib_quantized_pooling"] = [this, &asymetric_padding](
