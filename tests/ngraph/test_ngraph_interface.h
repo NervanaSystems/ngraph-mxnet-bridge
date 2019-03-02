@@ -51,10 +51,10 @@ class NGRAPH_INTERFACE : public ::testing::Test {
 
     nnvm_graph.outputs.push_back(relu);
 
-    nnvm::TShape shape{2, 2};
+    mxnet::TShape shape{2, 2};
 
     mxnet::exec::ContextVector contexts(nodes_.size(), mxnet::Context::CPU());
-    nnvm::ShapeVector shapes(nodes_.size(), shape);
+    mxnet::ShapeVector shapes(nodes_.size(), shape);
     nnvm::DTypeVector types(nodes_.size(), 0);
     mxnet::StorageTypeVector stypes(nodes_.size(), mxnet::kDefaultStorage);
     mxnet::exec::DevMaskVector dev_masks(nodes_.size(), mxnet::Context::CPU().dev_mask());
@@ -99,7 +99,7 @@ class NGRAPH_INTERFACE : public ::testing::Test {
   std::unordered_map<std::string, nnvm::NodePtr> nodes_;
   std::unordered_map<std::string, int> dtypes;
   std::unordered_map<std::string, int> stypes;
-  std::unordered_map<std::string, nnvm::TShape> shapes;
+  std::unordered_map<std::string, mxnet::TShape> shapes;
 };
 
 }  // namespace ngraph_bridge

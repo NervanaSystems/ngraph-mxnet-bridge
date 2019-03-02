@@ -434,15 +434,15 @@ void SGCompiler::CompileNodes(NodePtr node,
         }
 
         // Verify that the shapes computed by NNVM and nGraph are identical...
-        const nnvm::TShape &nnvm_shape = node->shape_;
+        const auto& nnvm_shape = node->shape_;
         const std::shared_ptr<ngraph::Node> ngraph_node = this->op_map_[node];
         const ngraph::Shape &ngraph_provided_shape = ngraph_node->get_shape();
-        const nnvm::TShape ngraph_shape_as_nnvm_shape =
+        const auto ngraph_shape_as_nnvm_shape =
             NShape_to_TShape(ngraph_provided_shape);
 
         bool bad_shape = false;
         // nGraph represent scalars as 0-dim tensors
-        // nnvm::TShape represents them as 1-dim tensors of size 1
+        // mxnet::TShape represents them as 1-dim tensors of size 1
         // if nGraph is returing a 0-dim tensor, the nnvm
         // shape should be size 1
         if (((ngraph_provided_shape.size() == 0) &&

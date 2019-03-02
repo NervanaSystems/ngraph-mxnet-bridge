@@ -1107,8 +1107,8 @@ void Emitter::CreateLayerOps() {
   // squeeze op
   ngraph_op_funcs_["squeeze"] = [this](const NodePtr& node) {
     auto input = op_map_[node->inputs_[0]];
-    std::vector<nnvm::TShape> ishapes{NShape_to_TShape(input->get_shape())};
-    std::vector<nnvm::TShape> oshapes(1);
+    std::vector<mxnet::TShape> ishapes{NShape_to_TShape(input->get_shape())};
+    std::vector<mxnet::TShape> oshapes(1);
     mxnet::op::SqueezeShape(node->orig_node_->attrs, &ishapes, &oshapes);
     return std::make_shared<ngraph::op::Reshape>(
         input, pyrange(input->get_shape().size()),

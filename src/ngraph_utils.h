@@ -231,7 +231,7 @@ get_default(const NodePtr& node, const std::string& key,
 
 /// Emits a programmer-friendly representation, to assist with logging
 /// and debugging.
-std::ostream& operator<<(std::ostream& os, const nnvm::TShape& s);
+std::ostream& operator<<(std::ostream& os, const mxnet::TShape& s);
 std::ostream& operator<<(std::ostream& os, const std::vector<float>& s);
 
 /// A convenience method to obtain the elements of s1 that are not

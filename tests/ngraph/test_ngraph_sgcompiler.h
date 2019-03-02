@@ -34,7 +34,7 @@ class NGRAPH_SGCOMPILER : public ::testing::Test {
   NodePtr node2;
   std::shared_ptr<Graph> subgraph;
   virtual void SetUp() {
-    const auto shape = nnvm::TShape{4, 8, 12, 16};
+    const auto shape = mxnet::TShape{4, 8, 12, 16};
 
     in1 = std::make_shared<VariableNode>(nullptr, "in1");
     in2 = std::make_shared<VariableNode>(nullptr, "in2");

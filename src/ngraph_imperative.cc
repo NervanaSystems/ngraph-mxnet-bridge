@@ -89,7 +89,7 @@ NGImperative::NGImperative(const nnvm::Symbol &sym, const mxnet::Context &ctx,
   MakeCopiedInputs(sym.ListInputs(nnvm::Symbol::kReadOnlyArgs));
 }
 NGImperative::NGImperative(const nnvm::Symbol &sym, const mxnet::Context &ctx,
-                           const nnvm::ShapeVector &shapes,
+                           const mxnet::ShapeVector &shapes,
                            const nnvm::DTypeVector &dtypes,
                            const nnvm::StorageVector &stypes)
     : Compiler(ctx) {
@@ -107,7 +107,7 @@ NGImperative::NGImperative(const nnvm::Symbol &sym, const mxnet::Context &ctx,
 }
 NGImperative::NGImperative(const nnvm::Graph &g, const mxnet::Context &ctx)
     : Compiler(ctx) {
-  shapes_ = g.GetAttr<nnvm::ShapeVector>("shape");
+  shapes_ = g.GetAttr<mxnet::ShapeVector>("shape");
   dtypes_ = g.GetAttr<nnvm::DTypeVector>("dtype");
   stypes_ = g.GetAttr<mxnet::StorageTypeVector>("storage_type");
   DeepCopy(g);

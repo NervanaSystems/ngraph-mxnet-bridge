@@ -23,7 +23,7 @@ NgraphNodePtr get_slice(const NgraphNodePtr& node,
                         const nnvm::Tuple<dmlc::optional<int>>& param_begin,
                         const nnvm::Tuple<dmlc::optional<int>>& param_end,
                         const nnvm::Tuple<dmlc::optional<int>>& param_step) {
-  nnvm::TShape tshape = NShape_to_TShape(node->get_shape());
+  mxnet::TShape tshape = NShape_to_TShape(node->get_shape());
   ngraph::Coordinate ng_begin, ng_end, ng_step;
   ngraph::AxisSet reverse_axes;
   const bool reverse = std::any_of(param_step.begin(), param_step.end(),
@@ -109,8 +109,8 @@ NgraphNodePtr create_slice_like_op(const NgraphNodePtr& node,
                                    const nnvm::NodeAttrs& attrs) {
   const mxnet::op::SliceLikeParam& param =
       nnvm::get<mxnet::op::SliceLikeParam>(attrs.parsed);
-  nnvm::TShape shape = NShape_to_TShape(node->get_shape());
-  nnvm::TShape tshape = NShape_to_TShape(out->get_shape());
+  mxnet::TShape shape = NShape_to_TShape(node->get_shape());
+  mxnet::TShape tshape = NShape_to_TShape(out->get_shape());
   nnvm::Tuple<dmlc::optional<int>> param_begin;
   nnvm::Tuple<dmlc::optional<int>> param_end;
   nnvm::Tuple<dmlc::optional<int>> param_step;

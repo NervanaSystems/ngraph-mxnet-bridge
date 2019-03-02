@@ -30,7 +30,7 @@ extern const bool ngraph_log_verbose_detail =
 extern const bool ngraph_tensor_recreate =
     dmlc::GetEnv("MXNET_NGRAPH_TENSOR_RECREATE", false);
 
-std::ostream& operator<<(std::ostream& os, const nnvm::TShape& s) {
+std::ostream& operator<<(std::ostream& os, const mxnet::TShape& s) {
   return container_to_debug_stream(os, s);
 }
 

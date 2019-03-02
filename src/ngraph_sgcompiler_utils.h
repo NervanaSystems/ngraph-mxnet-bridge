@@ -79,12 +79,12 @@ inline To convert_shapes(const Ti& inshape) {
 }
 
 template <>
-inline nnvm::TShape convert_shapes(const ngraph::Shape& inshape) {
-  return nnvm::TShape(inshape.begin(), inshape.end());
+inline mxnet::TShape convert_shapes(const ngraph::Shape& inshape) {
+  return mxnet::TShape(inshape.begin(), inshape.end());
 }
 
 template <>
-inline ngraph::Shape convert_shapes(const nnvm::TShape& inshape) {
+inline ngraph::Shape convert_shapes(const mxnet::TShape& inshape) {
   ngraph::Shape shape;
   for (const auto& s : inshape) {
     if (s < 0) {
@@ -96,16 +96,16 @@ inline ngraph::Shape convert_shapes(const nnvm::TShape& inshape) {
   return shape;
 }
 
-inline nnvm::TShape NShape_to_TShape(const ngraph::Shape& inshape) {
+inline mxnet::TShape NShape_to_TShape(const ngraph::Shape& inshape) {
   if (inshape.size() == 0) {
-    return nnvm::TShape{1};
+    return mxnet::TShape{1};
   }
-  return convert_shapes<ngraph::Shape, nnvm::TShape>(inshape);
+  return convert_shapes<ngraph::Shape, mxnet::TShape>(inshape);
 }
 
 // Only thing we're currently converting -> TShape to ngraph::Shape
-inline ngraph::Shape TShape_to_NShape(const nnvm::TShape& inshape) {
-  return convert_shapes<nnvm::TShape, ngraph::Shape>(inshape);
+inline ngraph::Shape TShape_to_NShape(const mxnet::TShape& inshape) {
+  return convert_shapes<mxnet::TShape, ngraph::Shape>(inshape);
 }
 
 // Create a runtime typed constant defined by type, shape, and a string

@@ -29,7 +29,7 @@ class NGRAPH_IMPERATIVE : public ::testing::Test {
  protected:
   NGRAPH_IMPERATIVE() {
     // default test arguments
-    nnvm::TShape shape{2};
+    mxnet::TShape shape{2};
     inputs.emplace_back(
         mxnet::NDArray(mxnet::TBlob(vec1.data(), shape, 1, 0), 0));
     inputs.emplace_back(

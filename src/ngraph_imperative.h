@@ -45,7 +45,7 @@ class NGImperative : public Compiler {
                const std::vector<mxnet::OpReqType> *req,
                const std::vector<mxnet::NDArray> &outputs);
   NGImperative(const nnvm::Symbol &sym, const mxnet::Context &ctx,
-               const nnvm::ShapeVector &shapes, const nnvm::DTypeVector &dtypes,
+               const mxnet::ShapeVector &shapes, const nnvm::DTypeVector &dtypes,
                const nnvm::StorageVector &stypes);
   NGImperative(const nnvm::Graph &g, const mxnet::Context &ctx);
 

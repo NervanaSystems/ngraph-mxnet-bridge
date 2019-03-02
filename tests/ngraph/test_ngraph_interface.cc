@@ -32,8 +32,8 @@ TEST_F(NGRAPH_INTERFACE, NULLNODE_SUBGRAPH_NODE) {
 }
 
 TEST_F(NGRAPH_INTERFACE, INFER_BAD_SHAPES) {
-  std::vector<nnvm::TShape> small(3, nnvm::TShape{2,2});
-  std::vector<nnvm::TShape> good(4, nnvm::TShape{2,2});
+  std::vector<mxnet::TShape> small(3, mxnet::TShape{2,2});
+  std::vector<mxnet::TShape> good(4, mxnet::TShape{2,2});
 
   static auto& finfer_generator =
       mxnet::Op::GetAttr<nnvm::FInferShape>("FInferShape");
@@ -76,7 +76,7 @@ TEST_F(NGRAPH_INTERFACE, INFER_NULL_STORAGE) {
 }
 
 TEST_F(NGRAPH_INTERFACE, MISSING_DATA_COMPUTE_FORWARD) {
-  nnvm::TShape shape{2, 2};
+  mxnet::TShape shape{2, 2};
   std::vector<float> vec1{1, 1, 1, 1};
 
   std::vector<mxnet::NDArray> one(
@@ -113,7 +113,7 @@ TEST_F(NGRAPH_INTERFACE, MISSING_DATA_COMPUTE_BACKWARD) {
   auto num_inputs = graph->ngraph_backward[1]->get_parameters().size();
   auto num_outputs = graph->ngraph_backward[1]->get_results().size();
 
-  nnvm::TShape shape{2, 2};
+  mxnet::TShape shape{2, 2};
   std::vector<float> vec1{1, 1, 1, 1};
 
   std::vector<mxnet::NDArray> full_input(

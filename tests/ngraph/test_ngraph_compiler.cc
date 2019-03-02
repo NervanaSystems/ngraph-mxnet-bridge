@@ -112,7 +112,7 @@ TEST_F(NGRAPH_COMPILER, PARSENNVMGRAPH) {
 
   const auto& idx = test.graph_.indexed_graph();
   const auto inferred_shapes =
-      test.graph_.GetAttr<std::vector<nnvm::TShape>>("shape");
+      test.graph_.GetAttr<std::vector<mxnet::TShape>>("shape");
   const auto inferred_dtypes = test.graph_.GetAttr<std::vector<int>>("dtype");
   for (auto node : test.ngraph_.nodes_) {
     const uint32_t nid = idx.node_id(node->orig_node_.get());

@@ -88,7 +88,7 @@ void Compiler::Infer(const BindArg* bind) {
   }
 
   // append default shapes / dtypes so that vector size = graph size
-  shapes_.resize(idx.input_nodes().size(), nnvm::TShape());
+  shapes_.resize(idx.input_nodes().size(), mxnet::TShape());
   dtypes_.resize(idx.input_nodes().size(), -1);
   stypes_.resize(idx.input_nodes().size(), mxnet::kUndefinedStorage);
 }
@@ -97,7 +97,7 @@ void Compiler::Infer(const BindArg* bind) {
 // reused from GraphExecutor::Init in graph_executor.cc
 void Compiler::Infer(const SimpleBindArg* simplebind) {
   const auto& idx = graph_.indexed_graph();
-  shapes_.resize(idx.input_nodes().size(), nnvm::TShape());
+  shapes_.resize(idx.input_nodes().size(), mxnet::TShape());
   dtypes_.resize(idx.input_nodes().size(), -1);
   stypes_.resize(idx.input_nodes().size(), mxnet::kUndefinedStorage);
   for (size_t i = 0; i < simplebind->kNumForwardInputs; ++i) {
@@ -157,7 +157,7 @@ Compiler::Compiler(const nnvm::Graph& g,
                   : mxnet::Context()) {
   if (!check_graph(g)) return;
 
-  shapes_ = g.GetAttr<nnvm::ShapeVector>("shape");
+  shapes_ = g.GetAttr<mxnet::ShapeVector>("shape");
   dtypes_ = g.GetAttr<nnvm::DTypeVector>("dtype");
   stypes_ = g.GetAttr<mxnet::StorageTypeVector>("storage_type");
 
@@ -213,7 +213,7 @@ Compiler::Compiler(const nnvm::Graph& graph, const NDArrayMap& feed_dict,
   ProcessGraph(feed_dict);
 }
 
-void Compiler::ReshapeGraph(const nnvm::ShapeVector& new_shapes) {
+void Compiler::ReshapeGraph(const mxnet::ShapeVector& new_shapes) {
   std::unordered_set<NodePtr> visited;
   ngraph_.clear_nodes(visited);
   sub_ngraph_->clear_nodes(visited);
@@ -236,7 +236,7 @@ void Compiler::ReshapeGraph(const nnvm::ShapeVector& new_shapes) {
 
   graph = mxnet::exec::InferShape(
       std::move(graph),
-      nnvm::ShapeVector{shapes_.begin(), shapes_.begin() + new_shapes.size()},
+      mxnet::ShapeVector{shapes_.begin(), shapes_.begin() + new_shapes.size()},
       "__shape__");
 
   graph = mxnet::exec::InferType(
@@ -259,7 +259,7 @@ void Compiler::ProcessGraph(const NDArrayMap& feed_dict) {
   // TODO(adstraw): may or may not need error checking
   // if (g.GetAttr<size_t>("shape_num_unknown_nodes") != 0U) {
   //  HandleInferShapeError(num_forward_inputs, g.indexed_graph(),
-  //    g.GetAttr<nnvm::ShapeVector>("shape"));
+  //    g.GetAttr<mxnet::ShapeVector>("shape"));
   //}
 
   graph_ = mxnet::exec::InferType(std::move(graph_), std::move(dtypes_),
@@ -503,7 +503,7 @@ nnvm::Graph Compiler::Compile() {
 
 nnvm::Graph Compiler::GetCachedOpGraph(
     const std::vector<mxnet::NDArray*>& inputs) {
-  nnvm::ShapeVector shape_inputs;
+  mxnet::ShapeVector shape_inputs;
   nnvm::DTypeVector dtype_inputs;
   std::vector<int> storage_type_inputs;
   shape_inputs.reserve(inputs.size());
@@ -625,7 +625,7 @@ void Compiler::ParseNnvmGraph(const nnvm::Graph* graph_with_attrs) {
   if (graph_with_attrs == nullptr) graph_with_attrs = &graph_;
   const auto& idx = graph_.indexed_graph();
   const auto inferred_shapes =
-      graph_with_attrs->GetAttr<std::vector<nnvm::TShape>>("shape");
+      graph_with_attrs->GetAttr<std::vector<mxnet::TShape>>("shape");
   const auto inferred_dtypes =
       graph_with_attrs->GetAttr<std::vector<int>>("dtype");
   const auto& inferred_stypes =

@@ -54,7 +54,7 @@ TEST(NGRAPH_STRING, RANDOMSTRING) {
 }
 
 TEST(NGRAPH_SGCOMPILER_UTILS, Convert_Shapes) {
-  auto Tshape = nnvm::TShape{2, 3, 4, 5};
+  auto Tshape = mxnet::TShape{2, 3, 4, 5};
   auto Nshape = TShape_to_NShape(Tshape);
 
   std::vector<int> TshapeVec;
@@ -65,11 +65,11 @@ TEST(NGRAPH_SGCOMPILER_UTILS, Convert_Shapes) {
 
   for (int i = 0; i < 4; ++i) EXPECT_EQ(TshapeVec[i], NshapeVec[i]);
 
-  EXPECT_EQ(TShape_to_NShape(nnvm::TShape{}), ngraph::Shape{});
-  EXPECT_EQ(TShape_to_NShape(nnvm::TShape{1}), ngraph::Shape{1});
-  EXPECT_EQ(TShape_to_NShape(nnvm::TShape{2, 3, 4, 5, 6}),
+  EXPECT_EQ(TShape_to_NShape(mxnet::TShape{}), ngraph::Shape{});
+  EXPECT_EQ(TShape_to_NShape(mxnet::TShape{1}), ngraph::Shape{1});
+  EXPECT_EQ(TShape_to_NShape(mxnet::TShape{2, 3, 4, 5, 6}),
             (ngraph::Shape{2, 3, 4, 5, 6}));
-  EXPECT_THROW(TShape_to_NShape(nnvm::TShape{2, 3, 4, -1}), std::runtime_error);
+  EXPECT_THROW(TShape_to_NShape(mxnet::TShape{2, 3, 4, -1}), std::runtime_error);
 }
 
 TEST(NGRAPH_SGCOMPILER_UTILS, GetNGraphTypes) {
@@ -83,7 +83,7 @@ TEST(NGRAPH_SGCOMPILER_UTILS, GetNGraphTypes) {
 TEST(NGRAPH_NNVM, GetBufferSize) {
   std::vector<int> vecshape{2, 3, 4, 5};
   ngraph::Shape ngshape{2, 3, 4, 5};
-  nnvm::TShape Tshape{2, 3, 4, 5};
+  mxnet::TShape Tshape{2, 3, 4, 5};
 
   EXPECT_EQ(get_buffer_size(vecshape, 2), 240ul);
   EXPECT_EQ(get_buffer_size(vecshape, 4), 480ul);
@@ -97,7 +97,7 @@ TEST(NGRAPH_NNVM, GetBufferSize) {
 }
 
 TEST(NGRAPH_NNVM, copy_NDArrays) {
-  nnvm::TShape shape{10};
+  mxnet::TShape shape{10};
   std::vector<float> vec1{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
   std::vector<float> vec2{11, 12, 13, 14, 15, 16, 17, 18, 19, 10};
 

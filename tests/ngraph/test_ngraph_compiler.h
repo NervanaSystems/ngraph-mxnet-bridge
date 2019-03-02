@@ -60,10 +60,10 @@ class NGRAPH_COMPILER : public ::testing::Test {
 
     nnvm_graph.outputs.push_back(relu);
 
-    nnvm::TShape shape{2, 2};
+    mxnet::TShape shape{2, 2};
     std::unordered_map<std::string, int> dtypes;
     std::unordered_map<std::string, int> stypes;
-    std::unordered_map<std::string, nnvm::TShape> shapes;
+    std::unordered_map<std::string, mxnet::TShape> shapes;
 
     for (auto n : {A, B, C, D}) inputs.push_back(n.node);
 

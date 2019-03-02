@@ -40,7 +40,7 @@ namespace ngraph_bridge {
 using LayerGraphs = std::map<std::string, std::function<Graph(const NodePtr)>>;
 using NodeMap = std::map<const nnvm::Node*, std::shared_ptr<nnvm::Node>>;
 using NNVMNodeVec = std::vector<nnvm::NodePtr>;
-using NgraphShape = std::unordered_map<std::string, nnvm::TShape>;
+using NgraphShape = std::unordered_map<std::string, mxnet::TShape>;
 using NgraphDType = std::unordered_map<std::string, int>;
 using NgraphSType = std::unordered_map<std::string, int>;
 using NDArrayMap = nnvm::NodeEntryMap<mxnet::NDArray>;
@@ -74,7 +74,7 @@ struct BindArg : public BindArgBase {
 // SimpleBind
 struct SimpleBindArg : public BindArgBase {
   SimpleBindArg(size_t numforward,
-                const std::unordered_map<std::string, nnvm::TShape>& shapes,
+                const std::unordered_map<std::string, mxnet::TShape>& shapes,
                 const std::unordered_map<std::string, int>& dtypes,
                 const std::unordered_map<std::string, int>& stypes)
       : BindArgBase(numforward),
@@ -236,7 +236,7 @@ class Compiler {
   nnvm::Graph Compile();
   // assumes there is only one ngraph
   std::shared_ptr<Graph> GetNgraph();
-  void ReshapeGraph(const nnvm::ShapeVector& new_shapes);
+  void ReshapeGraph(const mxnet::ShapeVector& new_shapes);
   // parse the nnvm graph into an intermediate represenation
   // TODO(mbrookhart): Make this protected, it's here for debugging
   void ParseNnvmGraph(const nnvm::Graph* graph_with_attrs = nullptr);
@@ -301,7 +301,7 @@ class Compiler {
   void Infer(const SimpleBindArg* simplebind);
 
   // inferred nnvm::Graph shape
-  nnvm::ShapeVector shapes_;
+  mxnet::ShapeVector shapes_;
   // inferred nnvm::Graph dtype
   nnvm::DTypeVector dtypes_;
   // inferred nnvm::Graph storage type

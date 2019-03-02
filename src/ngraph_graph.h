@@ -92,7 +92,7 @@ class Node {
   std::vector<NodePtr> inputs_;
 
   // mxnet type information
-  nnvm::TShape shape_;
+  mxnet::TShape shape_;
   int dtype_ = 0;
   int stype_ = 0;
 
