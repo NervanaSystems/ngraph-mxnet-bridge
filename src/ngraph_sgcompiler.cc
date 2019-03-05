@@ -140,14 +140,16 @@ void CompileForwardBackward(std::shared_ptr<Graph> sub_graph,
   sub_graph->ngraph_forward[mode] = backend->compile(f_copy, ngraph_log_timer());
   sub_graph->ngraph_forward_f[mode] = f_copy;
 
-  for (auto result : f->get_results()) {
-    if (fprop_cache.node_param_map->exists(result->get_argument(0))) {
-      auto cloned_result = fmap.get(result);
-      auto bf_param = fprop_cache.node_param_map->get(result->get_argument(0));
-      if (bfmap.get_node_map().count(bf_param) != 0) {
-        auto cloned_bf_param = bfmap.get(bf_param);
-        auto layout = cloned_result->get_output_tensor().get_tensor_layout();
-        cloned_bf_param->get_output_tensor().set_tensor_layout(layout);
+  if (get_backend_name(sub_graph->context_) == "CPU") {
+    for (auto result : f->get_results()) {
+      if (fprop_cache.node_param_map->exists(result->get_argument(0))) {
+        auto cloned_result = fmap.get(result);
+        auto bf_param = fprop_cache.node_param_map->get(result->get_argument(0));
+        if (bfmap.get_node_map().count(bf_param) != 0) {
+          auto cloned_bf_param = bfmap.get(bf_param);
+          auto layout = cloned_result->get_output_tensor().get_tensor_layout();
+          cloned_bf_param->get_output_tensor().set_tensor_layout(layout);
+        }
       }
     }
   }
