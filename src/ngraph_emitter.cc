@@ -34,6 +34,7 @@
 #include "../../../src/operator/quantization/quantize_v2-inl.h"
 #include "../../../src/operator/nn/concat-inl.h"
 #include "../../../src/operator/tensor/matrix_op-inl.h"
+#include "../../../src/operator/tensor/ordering_op-inl.h"
 #include "ngraph_sgcompiler_utils.h"
 #include "ops/batchnorm.h"
 #include "ops/convolution.h"
@@ -1115,6 +1116,31 @@ void Emitter::CreateLayerOps() {
         TShape_to_NShape(oshapes[0]));
   };
 
+  // topk op
+  ngraph_op_funcs_["topk"] = [this](const NodePtr& node) -> NgraphNodePtr {
+    auto input = op_map_[node->inputs_[0]];
+    auto& attrs = node->orig_node_->attrs;
+    const mxnet::op::TopKParam& param =
+        nnvm::get<mxnet::op::TopKParam>(attrs.parsed);
+    int batch_size, element_num;  // number of batches + the size of each batch
+    int axis = 0;
+    bool do_transpose = false;
+    bool is_ascend = false;
+    int k = 0;
+    nnvm::TShape target_shape;
+    ParseTopKParam(NShape_to_TShape(input->get_shape()), param, &target_shape,
+                   &batch_size, &element_num, &axis, &k, &do_transpose,
+                   &is_ascend);
+    auto topk = std::make_shared<ngraph::op::TopK>(
+        input, axis, ngraph::element::i64, k, is_ascend);
+    auto indices =
+        cast_result(std::make_shared<ngraph::op::GetOutputElement>(topk, 0),
+                    getType(param.dtype));
+    /* auto vals = std::make_shared<ngraph::op::GetOutputElement>(topk, 1); */
+    /* multi_output_map_[node] = {indices, vals}; */
+    return indices;
+  };
+
   // stack takes a list of tensors of equal shape and
   // concatenates them along a given axis expanded for each input
   ngraph_op_funcs_["stack"] = [this](const NodePtr& node) {
@@ -2161,6 +2187,15 @@ void Emitter::UnsupportedOps() {
         node->printOpDetails(std::cout);
         std::cout << std::endl;
       }
+      out = false;
+    }
+    return out;
+  };
+  supported_ops["topk"] = [](const NodePtr& node) {
+    bool out = true;
+    const std::string ret_type =
+        get_default(node, "ret_typ", std::string("indices"));
+    if (ret_type != "indices") {
       out = false;
     }
     return out;
